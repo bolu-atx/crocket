@@ -1,9 +1,12 @@
 from bittrex.bittrex import Bittrex
-
+from sql.sql import Database
 
 if __name__ == '__main__':
 
-    print(1)
-    print(2)
+    database = Database()
+    bittrex = Bittrex()
+
+
+
 
 

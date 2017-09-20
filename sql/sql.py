@@ -17,8 +17,35 @@ class Database:
         except OperationalError:
             self.connection = None
 
-    def select_query(self, table, columns):
+    def insert_query(self, table, tuples):
 
+        columns, data = zip(*tuples)
+        formatted_columns = ','.join(columns)
+        data_format = ['%s'] * len(columns)
+
+        query = 'INSERT INTO {} ({}) VALUES ({})'.format(table, formatted_columns, data_format)
+
+        cursor = self.connection.cursor()
+
+        try:
+            cursor.execute(query, data)
+            self.connection.commit()
+
+        except (OperationalError, ProgrammingError) as e:
+
+            cursor.close()
+            print(e.error)
+            return
+
+        cursor.close()
+
+    def select_query(self, table, columns):
+        """
+        Execute a select query
+        :param table:
+        :param columns:
+        :return:
+        """
         if isinstance(columns, list):
 
             formatted_columns = ','.join(columns)
@@ -50,5 +77,8 @@ class Database:
         return result
 
     def close(self):
-
+        """
+        Close the database connection
+        :return:
+        """
         self.connection.close()
