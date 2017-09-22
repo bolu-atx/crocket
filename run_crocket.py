@@ -50,7 +50,7 @@ if cipher.decrypt(encrypted_username) != USERNAME:
     print('Username does not match encrypted username ...')
     exit(1)
 
-PASSCODE = getpass('Enter pascode: ')
+PASSCODE = getpass('Enter passcode: ')
 
 if cipher.decrypt(encrypted_passcode) != PASSCODE:
 
@@ -63,7 +63,7 @@ print('Successfully entered credentials ...')
 db = Database(hostname=HOSTNAME,
               username=USERNAME,
               password=PASSCODE,
-              database=DATABASE_NAME)
+              database_name=DATABASE_NAME)
 
 # Initialize bittrex object
 bittrex = Bittrex()
