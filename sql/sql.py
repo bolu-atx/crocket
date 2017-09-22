@@ -20,7 +20,7 @@ class Database:
 
     def insert_query(self, table, tuples):
 
-        columns, data = map(','.join, zip(*tuples))
+        columns, data = zip(*tuples)
         formatted_columns = ','.join(columns)
         formatted_data = ','.join(map(str, data))
 
