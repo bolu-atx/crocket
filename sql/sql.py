@@ -61,7 +61,7 @@ class Database:
                 cursor.execute(query)
                 result = cursor.fetchall()
             except OperationalError as e:
-                print(e.error)
+                print(e)
 
         return result
 
@@ -74,7 +74,7 @@ class Database:
             try:
                 cursor.execute(query)
             except OperationalError as e:
-                print(e.error)
+                print(e)
 
     def close(self):
         """
