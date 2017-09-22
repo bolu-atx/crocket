@@ -23,7 +23,6 @@ class Database:
         columns, data = zip(*tuples)
         print(data)
         formatted_columns = ','.join(columns)
-        formatted_data = ','.join(map(str, data))
 
         data_format = ['%s'] * len(columns)
 
@@ -32,7 +31,7 @@ class Database:
         with closing(self.connection.cursor()) as cursor:
 
             try:
-                cursor.execute(query, formatted_data)
+                cursor.execute(query, data)
                 self.connection.commit()
             except (OperationalError, ProgrammingError) as e:
                 print(e)
