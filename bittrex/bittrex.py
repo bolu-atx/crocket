@@ -1,6 +1,6 @@
 import time
-import hmac
-import hashlib
+from hmac import new as hmac_new
+from hashlib import sha512
 from urllib.parse import urlencode
 
 from requests import get as request_get
@@ -81,9 +81,9 @@ class Bittrex:
 
         request_url += urlencode(options)
 
-        apisign = hmac.new(self.api_secret.encode(),
+        apisign = hmac_new(self.api_secret.encode(),
                            request_url.encode(),
-                           hashlib.sha512).hexdigest()
+                           sha512).hexdigest()
         return self.dispatch(request_url, apisign)
 
     def get_markets(self):
@@ -204,6 +204,18 @@ class Bittrex:
         """
         return self.api_query('getmarkethistory',
                               {'market': market, 'count': count})
+
+    def list_markets_by_currency(self, currency):
+        """
+        Helper function to see which markets exist for a currency.
+        Endpoint: /public/getmarkets
+        :param currency: String literal for the currency (ex: LTC)
+        :type currency: str
+        :return: List of markets that the currency appears in
+        :rtype: list
+        """
+        return [market['MarketName'] for market in self.get_markets()['result']
+                if market['MarketName'].lower().endswith(currency.lower())]
 
     def buy_limit(self, market, quantity, rate):
         """
@@ -388,15 +400,3 @@ class Bittrex:
         """
         return self.api_query('getdeposithistory',
                               {'currency': currency} if currency else None)
-
-    def list_markets_by_currency(self, currency):
-        """
-        Helper function to see which markets exist for a currency.
-        Endpoint: /public/getmarkets
-        :param currency: String literal for the currency (ex: LTC)
-        :type currency: str
-        :return: List of markets that the currency appears in
-        :rtype: list
-        """
-        return [market['MarketName'] for market in self.get_markets()['result']
-                if market['MarketName'].lower().endswith(currency.lower())]

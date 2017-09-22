@@ -1,8 +1,9 @@
+from contextlib import closing
+
 from MySQLdb import connect, OperationalError, ProgrammingError
 
 
 class Database:
-
     def __init__(self,
                  hostname,
                  username,
@@ -25,19 +26,13 @@ class Database:
 
         query = 'INSERT INTO {} ({}) VALUES ({})'.format(table, formatted_columns, data_format)
 
-        cursor = self.connection.cursor()
+        with closing(self.connection.cursor()) as cursor:
 
-        try:
-            cursor.execute(query, data)
-            self.connection.commit()
-
-        except (OperationalError, ProgrammingError) as e:
-
-            cursor.close()
-            print(e.error)
-            return
-
-        cursor.close()
+            try:
+                cursor.execute(query, data)
+                self.connection.commit()
+            except OperationalError as e:
+                print(e.error)
 
     def select_query(self, table, columns):
         """
@@ -61,20 +56,26 @@ class Database:
 
         query = 'SELECT {} from {}'.format(formatted_columns, table)
 
-        cursor = self.connection.cursor()
+        with closing(self.connection.cursor()) as cursor:
 
-        try:
-            cursor.execute(query)
-            result = cursor.fetchall()
-        except (OperationalError, ProgrammingError) as e:
-
-            cursor.close()
-            print(e.error)
-            return
-
-        cursor.close()
+            try:
+                cursor.execute(query)
+                result = cursor.fetchall()
+            except OperationalError as e:
+                print(e.error)
 
         return result
+
+    def create_coin_table(self, table_name):
+
+        query = 'CREATE TABLE {} (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
+
+        with closing(self.connection.cursor()) as cursor:
+
+            try:
+                cursor.execute(query)
+            except OperationalError as e:
+                print(e.error)
 
     def close(self):
         """
