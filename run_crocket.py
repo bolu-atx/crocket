@@ -104,15 +104,15 @@ try:
             if not bittrex_entry.get('success'):
 
                 print('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
-                break
+                raise RuntimeError('API call failed')
 
             entry = (('time', get_time_now()), ('price', bittrex_entry.get('result').get('Last')))
 
             db.insert_query(market, entry)
             sleep(1)
 
-except KeyboardInterrupt:
-    print('Keyboard exception received. Exiting ...')
+except (KeyboardInterrupt, RuntimeError) as e:
+    print('Error: {}. Exiting ...'.format(e))
 
 db.close()
 exit(0)
