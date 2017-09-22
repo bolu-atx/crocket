@@ -21,6 +21,7 @@ class Database:
     def insert_query(self, table, tuples):
 
         columns, data = zip(*tuples)
+        print(data)
         formatted_columns = ','.join(columns)
         formatted_data = ','.join(map(str, data))
 
