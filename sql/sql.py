@@ -20,11 +20,10 @@ class Database:
 
     def insert_query(self, table, tuples):
 
-        columns, data = zip(*tuples)
-        formatted_columns = ','.join(columns)
+        columns, data = map(','.join, zip(*tuples))
         data_format = ['%s'] * len(columns)
 
-        query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, formatted_columns, data_format)
+        query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, columns, data_format)
 
         with closing(self.connection.cursor()) as cursor:
 
@@ -32,7 +31,7 @@ class Database:
                 cursor.execute(query, data)
                 self.connection.commit()
             except (OperationalError, ProgrammingError) as e:
-                print(e.error)
+                print(e)
 
     def select_query(self, table, columns):
         """
@@ -69,7 +68,7 @@ class Database:
     def create_coin_table(self, table_name):
 
         query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
-        print(query)
+
         with closing(self.connection.cursor()) as cursor:
 
             try:
