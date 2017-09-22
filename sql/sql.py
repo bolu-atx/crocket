@@ -68,7 +68,7 @@ class Database:
 
     def create_coin_table(self, table_name):
 
-        query = 'CREATE TABLE {} (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
+        query = 'CREATE TABLE "{}" (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
 
         with closing(self.connection.cursor()) as cursor:
 
