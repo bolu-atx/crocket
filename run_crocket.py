@@ -16,8 +16,24 @@ from sql.sql import Database
 # ==============================================================================
 
 def get_time_now():
-
+    """
+    Get time now.
+    Ex: 2017-09-22 12:28:22
+    :return:
+    """
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def get_bittrex_markets(markets, base_coin):
+    """
+    Get all Bittrex markets using a base currency.
+    :param markets: All bittrex markets
+    :param base_coin: Base currency
+    :return: (list)
+    """
+    return [x.get('MarketName') for x in markets.get('result')
+            if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
+
 
 # ==============================================================================
 # Environment variables
@@ -29,7 +45,7 @@ CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials.json')
 HOSTNAME = 'localhost'
 DATABASE_NAME = 'test'
 
-MARKET = 'BTC-EDG'
+BASE_COIN = 'BTC'
 
 # ==============================================================================
 # Run
@@ -41,7 +57,8 @@ KEY = getpass('Enter decryption key: ')
 
 cipher = AESCipher(KEY)
 
-encrypted_username, encrypted_passcode = map(str.encode, get_credentials(CREDENTIALS_FILE_PATH))
+encrypted_username, encrypted_passcode = \
+    map(str.encode, get_credentials(CREDENTIALS_FILE_PATH))
 
 USERNAME = getpass('Enter username: ')
 
@@ -65,27 +82,34 @@ db = Database(hostname=HOSTNAME,
               password=PASSCODE,
               database_name=DATABASE_NAME)
 
-# Initialize bittrex object
+# Initialize Bittrex object
 bittrex = Bittrex()
 
-# Create table if it doesn't exist
-db.create_coin_table(MARKET)
+# Get all markets on Bittrex
+bittrex_markets = bittrex.get_markets()
+MARKETS = get_bittrex_markets(bittrex_markets, BASE_COIN)
+
+# Create table for each market if doesn't exist
+for market in MARKETS:
+    db.create_coin_table(market)
 
 try:
 
     while True:
 
-        bittrex_entry = bittrex.get_ticker(MARKET)
+        for market in MARKETS:
 
-        if not bittrex_entry.get('success'):
+            bittrex_entry = bittrex.get_ticker(market)
 
-            print('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
-            break
+            if not bittrex_entry.get('success'):
 
-        entry = (('time', get_time_now()), ('price', bittrex_entry.get('result').get('Last')))
+                print('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
+                break
 
-        db.insert_query(MARKET, entry)
-        sleep(60)
+            entry = (('time', get_time_now()), ('price', bittrex_entry.get('result').get('Last')))
+
+            db.insert_query(market, entry)
+            sleep(1)
 
 except KeyboardInterrupt:
     print('Keyboard exception received. Exiting ...')

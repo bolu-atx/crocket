@@ -4,6 +4,10 @@ from MySQLdb import connect, OperationalError, ProgrammingError
 
 
 class Database:
+    """
+    The database object.
+    """
+
     def __init__(self,
                  hostname,
                  username,
@@ -19,7 +23,12 @@ class Database:
             self.connection = None
 
     def insert_query(self, table, tuples):
-
+        """
+        Execute an insert query.
+        :param table:
+        :param tuples:
+        :return:
+        """
         columns, data = zip(*tuples)
 
         formatted_columns = ','.join(columns)
@@ -38,7 +47,7 @@ class Database:
 
     def select_query(self, table, columns):
         """
-        Execute a select query
+        Execute a select query.
         :param table:
         :param columns:
         :return:
@@ -69,7 +78,11 @@ class Database:
         return result
 
     def create_coin_table(self, table_name):
-
+        """
+        Execute a create table query with two columns: (DATETIME, PRICE).
+        :param table_name: Table name
+        :return:
+        """
         query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
 
         with closing(self.connection.cursor()) as cursor:
