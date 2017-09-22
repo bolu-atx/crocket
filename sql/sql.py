@@ -21,14 +21,17 @@ class Database:
     def insert_query(self, table, tuples):
 
         columns, data = map(','.join, zip(*tuples))
+        formatted_columns = ','.join(columns)
+        formatted_data = ','.join(map(str, data))
+
         data_format = ['%s'] * len(columns)
 
-        query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, columns, data_format)
+        query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, formatted_columns, data_format)
 
         with closing(self.connection.cursor()) as cursor:
 
             try:
-                cursor.execute(query, data)
+                cursor.execute(query, formatted_data)
                 self.connection.commit()
             except (OperationalError, ProgrammingError) as e:
                 print(e)
