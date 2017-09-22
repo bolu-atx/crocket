@@ -24,14 +24,14 @@ class Database:
         formatted_columns = ','.join(columns)
         data_format = ['%s'] * len(columns)
 
-        query = 'INSERT INTO {} ({}) VALUES ({})'.format(table, formatted_columns, data_format)
+        query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, formatted_columns, data_format)
 
         with closing(self.connection.cursor()) as cursor:
 
             try:
                 cursor.execute(query, data)
                 self.connection.commit()
-            except OperationalError as e:
+            except (OperationalError, ProgrammingError) as e:
                 print(e.error)
 
     def select_query(self, table, columns):
@@ -54,7 +54,7 @@ class Database:
             print('Columns must be list of column names or "*"')
             return
 
-        query = 'SELECT {} from {}'.format(formatted_columns, table)
+        query = 'SELECT {} from `{}`'.format(formatted_columns, table)
 
         with closing(self.connection.cursor()) as cursor:
 
@@ -68,8 +68,8 @@ class Database:
 
     def create_coin_table(self, table_name):
 
-        query = '"CREATE TABLE {} (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)"'.format(table_name)
-
+        query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
+        print(query)
         with closing(self.connection.cursor()) as cursor:
 
             try:
