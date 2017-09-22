@@ -43,7 +43,7 @@ HOME_DIRECTORY_PATH = environ['HOME']
 CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials.json')
 
 HOSTNAME = 'localhost'
-DATABASE_NAME = 'test'
+DATABASE_NAME = 'PRICES'
 
 BASE_COIN = 'BTC'
 
