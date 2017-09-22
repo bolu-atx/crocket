@@ -21,10 +21,10 @@ class Database:
     def insert_query(self, table, tuples):
 
         columns, data = zip(*tuples)
-        print(data)
+
         formatted_columns = ','.join(columns)
 
-        data_format = ['%s'] * len(columns)
+        data_format = ','.join(['%s'] * len(columns))
 
         query = 'INSERT INTO `{}` ({}) VALUES ({})'.format(table, formatted_columns, data_format)
 
