@@ -13,9 +13,11 @@ class Database:
                  hostname,
                  username,
                  password,
-                 database_name):
+                 database_name,
+                 logger=None):
 
         self.database_name = database_name
+        self.logger = logger
 
         try:
             self.connection = connect(host=hostname,
@@ -43,10 +45,14 @@ class Database:
         with closing(self.connection.cursor()) as cursor:
 
             try:
+
                 cursor.execute(query, data)
                 self.connection.commit()
+
             except (OperationalError, ProgrammingError) as e:
-                print(e)
+
+                if self.logger:
+                    self.logger.debug(e)
 
     def select_query(self, table, columns):
         """
@@ -73,10 +79,14 @@ class Database:
         with closing(self.connection.cursor()) as cursor:
 
             try:
+
                 cursor.execute(query)
                 entries = list(cursor)
+
             except OperationalError as e:
-                print(e)
+
+                if self.logger:
+                    self.logger.debug(e)
 
         return entries
 
@@ -99,7 +109,8 @@ class Database:
             try:
                 cursor.execute(query)
             except OperationalError as e:
-                print(e)
+                if self.logger:
+                    self.logger.debug(e)
 
     def create_analysis_table(self, table_name):
         """
@@ -114,7 +125,8 @@ class Database:
             try:
                 cursor.execute(query)
             except OperationalError as e:
-                print(e)
+                if self.logger:
+                    self.logger.debug(e)
 
     def get_all_tables(self):
         """
@@ -126,10 +138,14 @@ class Database:
         with closing(self.connection.cursor()) as cursor:
 
             try:
+
                 cursor.execute(query)
                 tables = list(chain.from_iterable(cursor))
+
             except (OperationalError, ProgrammingError) as e:
-                print(e)
+
+                if self.logger:
+                    self.logger.debug(e)
 
         return tables
 

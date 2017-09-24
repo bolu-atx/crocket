@@ -25,15 +25,35 @@ def get_time_now():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
-def get_bittrex_markets(markets, base_coin):
+def filter_bittrex_markets(markets, base_coin):
     """
-    Get all Bittrex markets using a base currency.
+    Filter all Bittrex markets using a base currency.
     :param markets: All bittrex markets
     :param base_coin: Base currency
     :return: (list)
     """
     return [x.get('MarketName') for x in markets.get('result')
             if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
+
+
+def format_bittrex_entry(market_summary, time=get_time_now()):
+    """
+    Format market summary object into SQL entry.
+    :param market_summary: Summary of market
+    :param time: Time
+    :return: (list) tuples
+    """
+
+    formatted_entry = []
+
+    formatted_entry.append(('time', time))
+    formatted_entry.append(('price', market_summary.get('Last')))
+    formatted_entry.append(('basevolume', market_summary.get('BaseVolume')))
+    formatted_entry.append(('volume', market_summary.get('Volume')))
+    formatted_entry.append(('buyorder', market_summary.get('OpenBuyOrders')))
+    formatted_entry.append(('sellorder', market_summary.get('OpenSellOrders')))
+
+    return formatted_entry
 
 # ==============================================================================
 # Initialize logger
@@ -62,9 +82,11 @@ HOME_DIRECTORY_PATH = environ['HOME']
 CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials.json')
 
 HOSTNAME = 'localhost'
-DATABASE_NAME = 'PRICES'
+DATABASE_NAME = 'BITTREX'
 
 BASE_COIN = 'BTC'
+
+API_MAX_RETRIES = 3
 
 # ==============================================================================
 # Run
@@ -99,14 +121,15 @@ logger.debug('Successfully entered credentials ...')
 db = Database(hostname=HOSTNAME,
               username=USERNAME,
               password=PASSCODE,
-              database_name=DATABASE_NAME)
+              database_name=DATABASE_NAME,
+              logger=logger)
 
 # Initialize Bittrex object
 bittrex = Bittrex()
 
 # Get all markets on Bittrex
 bittrex_markets = bittrex.get_markets()
-MARKETS = get_bittrex_markets(bittrex_markets, BASE_COIN)
+MARKETS = filter_bittrex_markets(bittrex_markets, BASE_COIN)
 
 # Create table for each market if doesn't exist
 for market in MARKETS:
@@ -114,21 +137,41 @@ for market in MARKETS:
 
 try:
 
+    retries = 1
+
     while True:
 
-        for market in MARKETS:
+        market_summaries = bittrex.get_market_summaries()
 
-            bittrex_entry = bittrex.get_ticker(market)
+        # Retry API call on failed request
+        while not market_summaries.get('success'):
 
-            if not bittrex_entry.get('success'):
+            logger.debug('Bittrex API call failed: {}'.format(market_summaries.get('message')))
 
-                logger.debug('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
-                raise RuntimeError('API call failed')
+            if retries <= API_MAX_RETRIES:
 
-            entry = (('time', get_time_now()), ('price', bittrex_entry.get('result').get('Last')))
+                logger.debug('Retrying API call {}/{} in {} seconds ...'.format(retries, API_MAX_RETRIES, 60 * retries))
+                sleep(60 * retries)
 
-            db.insert_query(market, entry)
-            sleep(1)
+                market_summaries = bittrex.get_market_summaries()
+
+                retries += 1
+
+                if market_summaries.get('success'):
+                    retries = 1
+
+            else:
+                raise RuntimeError('Max number of consecutive API failed requests.')
+
+        insert_time = get_time_now()
+
+        for market_summary in market_summaries.get('result'):
+
+            market = market_summary.get('MarketName')
+            formatted_entry = format_bittrex_entry(market_summary, insert_time)
+            db.insert_query(market, formatted_entry)
+
+        sleep(60)
 
         # TODO: At midnight of every day - check and delete if any data past 30 days
 
