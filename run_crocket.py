@@ -1,5 +1,6 @@
 from datetime import datetime
 from getpass import getpass
+from logging import FileHandler, Formatter, StreamHandler, getLogger
 from os import environ
 from os.path import join
 from sys import exit
@@ -34,6 +35,24 @@ def get_bittrex_markets(markets, base_coin):
     return [x.get('MarketName') for x in markets.get('result')
             if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
 
+# ==============================================================================
+# Initialize logger
+# ==============================================================================
+logger = getLogger('crocket')
+
+logger.setLevel(10)
+
+fh = FileHandler(
+    '/var/tmp/crocket.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()))
+fh.setFormatter(Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
+logger.addHandler(fh)
+
+sh = StreamHandler()
+sh.setFormatter(Formatter('%(levelname)s: %(message)s'))
+logger.addHandler(sh)
+
+logger.info('Initialized logger.')
+
 
 # ==============================================================================
 # Environment variables
@@ -51,7 +70,7 @@ BASE_COIN = 'BTC'
 # Run
 # ==============================================================================
 
-print('Starting CRocket ....................')
+logger.debug('Starting CRocket ....................')
 
 KEY = getpass('Enter decryption key: ')
 
@@ -64,17 +83,17 @@ USERNAME = getpass('Enter username: ')
 
 if cipher.decrypt(encrypted_username) != USERNAME:
 
-    print('Username does not match encrypted username ...')
+    logger.debug('Username does not match encrypted username ...')
     exit(1)
 
 PASSCODE = getpass('Enter passcode: ')
 
 if cipher.decrypt(encrypted_passcode) != PASSCODE:
 
-    print('Passcode does not match encrypted passcode ...')
+    logger.debug('Passcode does not match encrypted passcode ...')
     exit(1)
 
-print('Successfully entered credentials ...')
+logger.debug('Successfully entered credentials ...')
 
 # Initialize database
 db = Database(hostname=HOSTNAME,
@@ -103,7 +122,7 @@ try:
 
             if not bittrex_entry.get('success'):
 
-                print('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
+                logger.debug('Bittrex API call failed: {}'.format(bittrex_entry.get('message')))
                 raise RuntimeError('API call failed')
 
             entry = (('time', get_time_now()), ('price', bittrex_entry.get('result').get('Last')))
@@ -114,7 +133,7 @@ try:
         # TODO: At midnight of every day - check and delete if any data past 30 days
 
 except (KeyboardInterrupt, RuntimeError) as e:
-    print('Error: {}. Exiting ...'.format(e))
+    logger.debug('Error: {}. Exiting ...'.format(e))
 
 db.close()
 exit(0)
