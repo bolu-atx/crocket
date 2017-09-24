@@ -86,7 +86,13 @@ class Database:
         :param table_name: Table name
         :return:
         """
-        query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
+        query = 'CREATE TABLE `{}` (' \
+                'time DATETIME NOT NULL PRIMARY KEY, ' \
+                'price DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'basevolume FLOAT UNSIGNED NOT NULL,' \
+                'volume FLOAT UNSIGNED NOT NULL,' \
+                'buyorder MEDIUMINT UNSIGNED NOT NULL,' \
+                'sellorder MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 
         with closing(self.connection.cursor()) as cursor:
 
