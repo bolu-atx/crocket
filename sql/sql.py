@@ -1,4 +1,5 @@
 from contextlib import closing
+from itertools import chain
 
 from MySQLdb import connect, OperationalError, ProgrammingError
 
@@ -13,6 +14,8 @@ class Database:
                  username,
                  password,
                  database_name):
+
+        self.database_name = database_name
 
         try:
             self.connection = connect(host=hostname,
@@ -71,13 +74,13 @@ class Database:
 
             try:
                 cursor.execute(query)
-                result = cursor.fetchall()
+                entries = list(cursor)
             except OperationalError as e:
                 print(e)
 
-        return result
+        return entries
 
-    def create_coin_table(self, table_name):
+    def create_price_table(self, table_name):
         """
         Execute a create table query with two columns: (DATETIME, PRICE).
         :param table_name: Table name
@@ -91,6 +94,38 @@ class Database:
                 cursor.execute(query)
             except OperationalError as e:
                 print(e)
+
+    def create_analysis_table(self, table_name):
+        """
+        Execute a create table query with two columns: (DATETIME, PRICE).
+        :param table_name: Table name
+        :return:
+        """
+        query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
+
+        with closing(self.connection.cursor()) as cursor:
+
+            try:
+                cursor.execute(query)
+            except OperationalError as e:
+                print(e)
+
+    def get_all_tables(self):
+        """
+        Get all tables in current database.
+        :return: (list)
+        """
+        query = 'select table_name from information_schema.tables where table_schema="{}"'.format(self.database_name)
+
+        with closing(self.connection.cursor()) as cursor:
+
+            try:
+                cursor.execute(query)
+                tables = list(chain.from_iterable(cursor))
+            except (OperationalError, ProgrammingError) as e:
+                print(e)
+
+        return tables
 
     def close(self):
         """

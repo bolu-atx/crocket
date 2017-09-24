@@ -91,7 +91,7 @@ MARKETS = get_bittrex_markets(bittrex_markets, BASE_COIN)
 
 # Create table for each market if doesn't exist
 for market in MARKETS:
-    db.create_coin_table(market)
+    db.create_price_table(market)
 
 try:
 
@@ -110,6 +110,8 @@ try:
 
             db.insert_query(market, entry)
             sleep(1)
+
+        # TODO: At midnight of every day - check and delete if any data past 30 days
 
 except (KeyboardInterrupt, RuntimeError) as e:
     print('Error: {}. Exiting ...'.format(e))
