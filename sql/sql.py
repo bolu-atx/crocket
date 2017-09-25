@@ -96,7 +96,7 @@ class Database:
         :param table_name: Table name
         :return:
         """
-        query = 'CREATE TABLE `{}` (' \
+        query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
                 'time DATETIME NOT NULL PRIMARY KEY, ' \
                 'price DECIMAL(9,8) UNSIGNED NOT NULL,' \
                 'basevolume FLOAT UNSIGNED NOT NULL,' \
