@@ -167,8 +167,10 @@ try:
         for market_summary in market_summaries.get('result'):
 
             market = market_summary.get('MarketName')
-            formatted_entry = format_bittrex_entry(market_summary, insert_time)
-            db.insert_query(market, formatted_entry)
+
+            if market.startswith(BASE_COIN):
+                formatted_entry = format_bittrex_entry(market_summary, insert_time)
+                db.insert_query(market, formatted_entry)
 
         sleep(60)
 
