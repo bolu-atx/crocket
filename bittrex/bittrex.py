@@ -34,10 +34,15 @@ ACCOUNT_SET = {
 
 
 def using_requests(request_url, apisign):
+    """
+    Send get request
+    :param request_url:
+    :param apisign:
+    :return:
+    """
     return request_get(
                 request_url,
-                headers={"apisign": apisign}
-            ).json()
+                headers={"apisign": apisign}).json()
 
 
 class Bittrex:

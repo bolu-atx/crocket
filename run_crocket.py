@@ -1,10 +1,12 @@
 from datetime import datetime
 from getpass import getpass
 from logging import FileHandler, Formatter, StreamHandler, getLogger
+from requests.exceptions import ConnectionError
 from os import environ
 from os.path import join
 from sys import exit
 from time import sleep
+from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 from utilities.passcode import AESCipher
 from utilities.credentials import get_credentials
@@ -137,31 +139,28 @@ for market in MARKETS:
 
 try:
 
-    retries = 1
-
     while True:
 
-        market_summaries = bittrex.get_market_summaries()
+        try:
 
-        # Retry API call on failed request
-        while not market_summaries.get('success'):
+            market_summaries = bittrex.get_market_summaries()
+            retries = 1
 
-            logger.debug('Bittrex API call failed: {}'.format(market_summaries.get('message')))
+        except (ConnectionError, MaxRetryError, NewConnectionError) as e:
+
+            # Retry API call on failed request
+            logger.debug('Bittrex API call failed: {}'.format(e))
 
             if retries <= API_MAX_RETRIES:
 
                 logger.debug('Retrying API call {}/{} in {} seconds ...'.format(retries, API_MAX_RETRIES, 60 * retries))
                 sleep(60 * retries)
 
-                market_summaries = bittrex.get_market_summaries()
-
                 retries += 1
-
-                if market_summaries.get('success'):
-                    retries = 1
+                continue
 
             else:
-                raise RuntimeError('Max number of consecutive API failed requests.')
+                raise ConnectionError('Max number of consecutive API failed requests.')
 
         insert_time = get_time_now()
 
@@ -175,7 +174,7 @@ try:
 
         # TODO: At midnight of every day - check and delete if any data past 30 days
 
-except (KeyboardInterrupt, RuntimeError) as e:
+except (KeyboardInterrupt, ConnectionError) as e:
     logger.debug('Error: {}. Exiting ...'.format(e))
 
 db.close()
