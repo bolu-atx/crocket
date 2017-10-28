@@ -7,7 +7,6 @@ from bittrex.bittrex import Bittrex
 
 
 def log_error_and_reply_text(message, update):
-
     logger.error(message)
     update.message.reply_text(message)
 
@@ -95,16 +94,19 @@ def get_orders(bot, update, args):
                 order_type = item.get('OrderType')
                 quantity = item.get('Quantity')
                 quantity_remaining = item.get('QuantityRemaining')
+                uuid = item.get('OrderUuid')
 
                 order_string += '{0}: {1}\n' \
                                 '{2}: {3:.8f}\n' \
                                 '{4}: {5}\n' \
                                 '{6}: {7}\n' \
-                                '{8}: {9}\n\n'.format('Currency', currency,
-                                                      'Rate', rate,
-                                                      'Type', order_type,
-                                                      'Quantity', quantity,
-                                                      'Quantity Remaining', quantity_remaining)
+                                '{8}: {9}\n' \
+                                '{10}: {11}\n\n'.format('Currency', currency,
+                                                        'Rate', rate,
+                                                        'Type', order_type,
+                                                        'Quantity', quantity,
+                                                        'Quantity Remaining', quantity_remaining,
+                                                        'UUID', uuid)
 
             update.message.reply_text(order_string)
 
@@ -128,10 +130,10 @@ def buy(bot, update, args):
     if args:
 
         # Validate input parameters
-        if len(args) == 3 and args[0].startswith('BTC-') and args[1] > 0 and args[2] > 0:
+        if len(args) == 3 and args[0].upper().startswith('BTC-') and float(args[1]) > 0 and 1 > float(args[2]) > 0:
             market = args[0].upper()
-            quantity = args[1]
-            rate = args[2]
+            quantity = float(args[1])
+            rate = float(args[2])
 
             try:
                 response = bittrex.buy_limit(market, quantity, rate)
@@ -171,10 +173,10 @@ def sell(bot, update, args):
     if args:
 
         # Validate input parameters
-        if len(args) == 3 and args[0].startswith('BTC-') and args[1] > 0 and args[2] > 0:
+        if len(args) == 3 and args[0].upper().startswith('BTC-') and float(args[1]) > 0 and 1 > float(args[2]) > 0:
             market = args[0].upper()
-            quantity = args[1]
-            rate = args[2]
+            quantity = float(args[1])
+            rate = float(args[2])
 
             try:
                 response = bittrex.sell_limit(market, quantity, rate)
