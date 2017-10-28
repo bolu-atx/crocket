@@ -5,8 +5,12 @@ import logging
 
 from bittrex.bittrex import Bittrex
 
-# Define a few command handlers. These usually take the two arguments bot and
-# update. Error handlers also receive the raised TelegramError object in error.
+
+def log_error_and_reply_text(message, update):
+
+    logger.error(message)
+    update.message.reply_text(message)
+
 
 def start(bot, update):
     """Send a message when the command /start is issued."""
@@ -21,11 +25,11 @@ def check(bot, update, args):
 
         try:
             price = bittrex.get_ticker(market).get('result').get('Last')
-            update.message.reply_text(market + ': {0:.8f}'.format(price))
+            update.message.reply_text('{0}: {1:.8f}'.format(market, price))
 
         except (ConnectionError, AttributeError):
-            logger.error('Check {} failed.'.format(market))
-            update.message.reply_text('Check failed.')
+            error_message = 'Check failed.'
+            log_error_and_reply_text(error_message, update)
 
 
 def get_balances(bot, update):
@@ -41,8 +45,8 @@ def get_balances(bot, update):
     available_string = 'Available:\n'
 
     try:
-        result = bittrex.get_balances().get('result')
-        for item in result:
+        response = bittrex.get_balances().get('result')
+        for item in response:
             currency = item.get('Currency')
             balance = item.get('Balance')
             available = item.get('Available')
@@ -59,43 +63,165 @@ def get_balances(bot, update):
         update.message.reply_text(available_string)
 
     except (ConnectionError, AttributeError):
-        logger.error('Failed to get balances.')
-        update.message.reply_text('Get balances failed.')
+        error_message = 'Failed to get balances.'
+        log_error_and_reply_text(error_message, update)
+
+
+def get_orders(bot, update, args):
+    """
+    Send a message of open orders
+    :param bot:
+    :param update:
+    :param args:
+    :return:
+    """
+
+    order_string = 'Open orders:\n'
+
+    try:
+
+        if args:
+            market = args[0].upper()
+        else:
+            market = None
+
+        response = bittrex.get_open_orders(market)
+
+        if response.get('success'):
+
+            for item in response.get('result'):
+                currency = item.get('Exchange')
+                rate = item.get('Limit')
+                order_type = item.get('OrderType')
+                quantity = item.get('Quantity')
+                quantity_remaining = item.get('QuantityRemaining')
+
+                order_string += '{0}: {1}\n' \
+                                '{2}: {3:.8f}\n' \
+                                '{4}: {5}\n' \
+                                '{6}: {7}\n' \
+                                '{8}: {9}\n\n'.format('Currency', currency,
+                                                      'Rate', rate,
+                                                      'Type', order_type,
+                                                      'Quantity', quantity,
+                                                      'Quantity Remaining', quantity_remaining)
+
+            update.message.reply_text(order_string)
+
+        else:
+            update.message.reply_text('Failed to get open orders: {}.'.format(response.get('message')))
+
+    except (ConnectionError, AttributeError):
+        error_message = 'Failed to get orders.'
+        log_error_and_reply_text(error_message, update)
 
 
 def buy(bot, update, args):
-    """Send a message when the command /help is issued."""
+    """
+    Send a message on status of buy order
+    :param bot:
+    :param update:
+    :param args:
+    :return:
+    """
 
     if args:
-        market = 'BTC-{}'.format(args[0]).upper()
 
-        try:
-            price = bittrex.get_ticker(market).get('result').get('Last')
-            update.message.reply_text(market + ': {0:.8f}'.format(price))
+        # Validate input parameters
+        if len(args) == 3 and args[0].startswith('BTC-') and args[1] > 0 and args[2] > 0:
+            market = args[0].upper()
+            quantity = args[1]
+            rate = args[2]
 
-        except (ConnectionError, AttributeError):
-            logger.error('Buy {} failed.'.format(market))
-            update.message.reply_text('Buy failed.')
+            try:
+                response = bittrex.buy_limit(market, quantity, rate)
+
+                if response.get('success'):
+
+                    buy_string = 'Buy successful.\n' \
+                                 'UUID: {}'.format(response.get('result').get('uuid'))
+
+                    update.message.reply_text(buy_string)
+                else:
+                    raise AttributeError
+
+            except (ConnectionError, AttributeError):
+                error_message = 'Buy failed.'
+                log_error_and_reply_text(error_message, update)
+
+        else:
+            error_message = 'Buy failed: incorrect format.\n' \
+                            'Ex: /buy BTC-LTC 100 0.000001'
+            log_error_and_reply_text(error_message, update)
+
+    else:
+        error_message = 'Buy failed: no currency specified.'
+        log_error_and_reply_text(error_message, update)
 
 
-def buynow(bot, update, args):
-    """Send a message when the command /help is issued."""
+def sell(bot, update, args):
+    """
+    Send a message on status of sell order
+    :param bot:
+    :param update:
+    :param args:
+    :return:
+    """
 
     if args:
-        market = 'BTC-{}'.format(args[0]).upper()
 
-        try:
-            price = bittrex.get_ticker(market).get('result').get('Last')
-            update.message.reply_text(market + ': {0:.8f}'.format(price))
+        # Validate input parameters
+        if len(args) == 3 and args[0].startswith('BTC-') and args[1] > 0 and args[2] > 0:
+            market = args[0].upper()
+            quantity = args[1]
+            rate = args[2]
 
-        except (ConnectionError, AttributeError):
-            logger.error('Check {} failed.'.format(market))
-            update.message.reply_text('Check failed.')
+            try:
+                response = bittrex.sell_limit(market, quantity, rate)
+
+                if response.get('success'):
+
+                    buy_string = 'Sell successful.\n' \
+                                 'UUID: {}'.format(response.get('result').get('uuid'))
+
+                    update.message.reply_text(buy_string)
+                else:
+                    raise AttributeError
+
+            except (ConnectionError, AttributeError):
+                error_message = 'Sell failed.'
+                log_error_and_reply_text(error_message, update)
+
+        else:
+            error_message = 'Sell failed: incorrect format.\n' \
+                            'Ex: /sell BTC-LTC 100 0.000001'
+            log_error_and_reply_text(error_message, update)
+
+    else:
+        error_message = 'Sell failed: no currency specified.'
+        log_error_and_reply_text(error_message, update)
 
 
-def echo(bot, update):
-    """Echo the user message."""
-    update.message.reply_text(update.message.text)
+def cancel(bot, update, args):
+    """
+    Send message on status of canceling order
+    :param bot:
+    :param update:
+    :param args:
+    :return:
+    """
+
+    if args:
+        response = bittrex.cancel(args[0])
+
+        if response.get('success'):
+            update.message.reply_text('Cancel successful!')
+        else:
+            error_message = 'Cancel failed: UUID not recognized.'
+            log_error_and_reply_text(error_message, update)
+    else:
+        error_message = 'Cancel failed: no UUID specified.'
+        log_error_and_reply_text(error_message, update)
 
 
 def error(bot, update, error):
@@ -112,19 +238,19 @@ def main():
     # Enable logging
     logging.basicConfig(filename='run_bot.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()),
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        level=logging.DEBUG)
+                        level=logging.INFO)
 
     global logger
     logger = logging.getLogger(__name__)
 
-    logger.debug('Initialized logger.')
+    logger.info('Initialized logger.')
 
     # Load bittrex credentials
     try:
         with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
             credentials = json_load(f)
     except FileNotFoundError:
-        logger.debug('Failed to load credentials from {}.'.format(BITTREX_CREDENTIALS_PATH))
+        logger.error('Failed to load credentials from {}.'.format(BITTREX_CREDENTIALS_PATH))
         raise
 
     # Create Bittrex object
@@ -137,7 +263,7 @@ def main():
             telegram = json_load(f)
             token = telegram.get('token')
     except FileNotFoundError:
-        logger.debug('Failed to load token from {}.'.format(BITTREX_CREDENTIALS_PATH))
+        logger.error('Failed to load token from {}.'.format(BITTREX_CREDENTIALS_PATH))
         raise
 
     # Create the EventHandler and pass it your bot's token.
@@ -150,15 +276,16 @@ def main():
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("check", check, pass_args=True))
     dp.add_handler(CommandHandler("getbalances", get_balances))
-
-    # on noncommand i.e message - echo the message on Telegram
-    dp.add_handler(MessageHandler(Filters.text, echo))
+    dp.add_handler(CommandHandler("getorders", get_orders, pass_args=True))
+    dp.add_handler(CommandHandler("buy", buy, pass_args=True))
+    dp.add_handler(CommandHandler("sell", sell, pass_args=True))
+    dp.add_handler(CommandHandler("cancel", cancel, pass_args=True))
 
     # log all errors
     dp.add_error_handler(error)
 
     # Start the Bot
-    updater.start_polling()
+    updater.start_polling(clean=True)
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
