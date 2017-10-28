@@ -11,11 +11,6 @@ def log_error_and_reply_text(message, update):
     update.message.reply_text(message)
 
 
-def start(bot, update):
-    """Send a message when the command /start is issued."""
-    update.message.reply_text('Hi!')
-
-
 def check(bot, update, args):
     """Send a message when the command /help is issued."""
 
@@ -275,7 +270,6 @@ def main():
     dp = updater.dispatcher
 
     # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("check", check, pass_args=True))
     dp.add_handler(CommandHandler("getbalances", get_balances))
     dp.add_handler(CommandHandler("getorders", get_orders, pass_args=True))
@@ -288,6 +282,8 @@ def main():
 
     # Start the Bot
     updater.start_polling(clean=True)
+
+    updater.bot.message
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since

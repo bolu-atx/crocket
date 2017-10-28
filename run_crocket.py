@@ -6,7 +6,7 @@ from os import environ
 from os.path import join
 from sys import exit
 from time import sleep
-from urllib3.exceptions import MaxRetryError, NewConnectionError
+from urllib3.exceptions import MaxRetryError, NewConnectionError, SSLError
 
 from utilities.passcode import AESCipher
 from utilities.credentials import get_credentials
@@ -146,7 +146,7 @@ try:
             market_summaries = bittrex.get_market_summaries()
             retries = 1
 
-        except (ConnectionError, MaxRetryError, NewConnectionError) as e:
+        except (ConnectionError, MaxRetryError, NewConnectionError, SSLError) as e:
 
             # Retry API call on failed request
             logger.debug('Bittrex API call failed: {}'.format(e))
