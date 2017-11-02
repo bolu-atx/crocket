@@ -1,18 +1,19 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from getpass import getpass
-from logging import FileHandler, Formatter, StreamHandler, getLogger
 from json import load as json_load
-from requests.exceptions import ConnectionError
+from logging import FileHandler, Formatter, StreamHandler, getLogger
 from os import environ
 from os.path import join
 from sys import exit
 from time import sleep
 
-from crocket.utilities.passcode import AESCipher
-from crocket.utilities.credentials import get_credentials
-from crocket.bittrex.bittrex2 import Bittrex
-from crocket.sql.sql import Database
+from requests.exceptions import ConnectionError
+from utilities.passcode import AESCipher
+
+from bittrex.bittrex2 import Bittrex
+from sql.sql import Database
+from utilities.credentials import get_credentials
 
 
 # ==============================================================================
