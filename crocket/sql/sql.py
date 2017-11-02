@@ -92,15 +92,15 @@ class Database:
 
     def create_price_table(self, table_name):
         """
-        Execute a create table query with two columns: (DATETIME, PRICE).
+        Execute a create table query with sic columns: (DATETIME, PRICE, WPRICE, BASEVOLUME, BUYORDER, SELLORDER).
         :param table_name: Table name
         :return:
         """
         query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
                 'time DATETIME NOT NULL PRIMARY KEY, ' \
                 'price DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'wprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
                 'basevolume FLOAT UNSIGNED NOT NULL,' \
-                'volume FLOAT UNSIGNED NOT NULL,' \
                 'buyorder MEDIUMINT UNSIGNED NOT NULL,' \
                 'sellorder MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 
