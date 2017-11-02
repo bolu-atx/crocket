@@ -236,6 +236,7 @@ for market in MARKETS:
 market = MARKETS[0]
 
 constant = 0
+failure = 0
 
 initial_market_history = bittrex.get_market_history(market).get('result')
 
@@ -252,9 +253,9 @@ try:
             market_history = bittrex.get_market_history(market).get('result')
             last_id = working_list[0].get('Id')
 
-            index = [x.get('Id') for x in market_history].index(last_id)
+            overlap_index = [x.get('Id') for x in market_history].index(last_id)
 
-            working_list = market_history[:index] + working_list
+            working_list = market_history[:overlap_index] + working_list
 
             latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
 
@@ -262,6 +263,8 @@ try:
 
                 start, stop = get_interval_index(working_list, current_datetime, interval)
                 metrics = calculate_metrics(working_list[start:stop], current_datetime)
+                formatted_entry = format_bittrex_entry(metrics)
+                db.insert_query(market, formatted_entry)
 
                 working_list = working_list[:start]
                 current_datetime = current_datetime + timedelta(seconds=interval)
@@ -279,6 +282,9 @@ try:
                 metrics['sell_order'] = new_metrics.get('sell_order')
                 metrics['time'] = new_metrics.get('time')
 
+                formatted_entry = format_bittrex_entry(metrics)
+                db.insert_query(market, formatted_entry)
+
                 working_list = working_list[:start]
                 current_datetime = current_datetime + timedelta(seconds=interval)
 
@@ -287,7 +293,7 @@ try:
                 logger.debug('Latest data point within interval. Skipping metrics generation.')
 
             # Set dynamic sleep time based on order volume
-            if index < 30:
+            if overlap_index < 30:
                 sleep_time = 60
             else:
                 sleep_time = 30
@@ -295,17 +301,25 @@ try:
         except ValueError:
             logger.debug('Latest ID in working list not found in latest market history. Adding all latest market history to working list.')
 
-            working_list = market_history + working_list
+            if market_history:
+                working_list = market_history + working_list
 
-            start, stop = get_interval_index(working_list, current_datetime, interval)
+                start, stop = get_interval_index(working_list, current_datetime, interval)
 
-            metrics = calculate_metrics(working_list, current_datetime)
-            current_datetime = current_datetime + timedelta(seconds=interval)
+                metrics = calculate_metrics(working_list, current_datetime)
+                formatted_entry = format_bittrex_entry(metrics)
+                db.insert_query(market, formatted_entry)
 
-            sleep_time = 30
+                current_datetime = current_datetime + timedelta(seconds=interval)
 
-        formatted_entry = format_bittrex_entry(metrics)
-        db.insert_query(market, formatted_entry)
+                sleep_time = 30
+            else:
+                failure += 1
+                logger.error('Failed to get data via Bittrex API. Attempt: {}'.format(failure))
+
+                if failure == 3:
+                    logger.error('Failed to get data via Bittrex API. Attempt: {}. Exiting...'.format(failure))
+                    exit(1)
 
         sleep(sleep_time)
 
