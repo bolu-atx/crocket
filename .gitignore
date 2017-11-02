@@ -99,3 +99,8 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+/.idea
+
+# jsons with credentials
+*.json
