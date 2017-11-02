@@ -8,12 +8,11 @@ from os import environ
 from os.path import join
 from sys import exit
 from time import sleep
-from urllib3.exceptions import MaxRetryError, NewConnectionError, SSLError
 
-from utilities.passcode import AESCipher
-from utilities.credentials import get_credentials
-from bittrex.bittrex import Bittrex
-from sql.sql import Database
+from crocket.utilities.passcode import AESCipher
+from crocket.utilities.credentials import get_credentials
+from crocket.bittrex.bittrex2 import Bittrex
+from crocket.sql.sql import Database
 
 
 # ==============================================================================
