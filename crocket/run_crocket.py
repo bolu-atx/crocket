@@ -113,7 +113,7 @@ def calculate_metrics(data, start_datetime, digits=8):
             [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
             decimal_places)
 
-    metrics = {'volume': volume,
+    metrics = {'basevolume': volume,
                'buy_order': buy_order,
                'sell_order': sell_order,
                'price': price,
