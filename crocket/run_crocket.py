@@ -117,7 +117,7 @@ def calculate_metrics(data, start_datetime, digits=8):
                'buy_order': buy_order,
                'sell_order': sell_order,
                'price': price,
-               'price_volume_weighted': price_volume_weighted,
+               'wprice': price_volume_weighted,
                'time': formatted_time}
 
     return metrics
