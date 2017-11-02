@@ -30,6 +30,12 @@ def format_time(datetime_to_format, time_format="%Y-%m-%d %H:%M:%S.%f"):
 
 
 def convert_bittrex_timestamp_to_datetime(timestamp, time_format="%Y-%m-%dT%H:%M:%S.%f"):
+    """
+    Convert timestamp string to datetime.
+    :param timestamp:
+    :param time_format:
+    :return:
+    """
     try:
         converted_datetime = datetime.strptime(timestamp, time_format)
     except ValueError:
@@ -39,6 +45,11 @@ def convert_bittrex_timestamp_to_datetime(timestamp, time_format="%Y-%m-%dT%H:%M
 
 
 def utc_to_local(utc_dt):
+    """
+    Convert UTC datetime to local datetime.
+    :param utc_dt:
+    :return:
+    """
     return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
 
@@ -87,7 +98,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     sell_order = 0
     price = 0
     price_volume_weighted = 0
-    formatted_time = format_time(utc_to_local(convert_bittrex_timestamp_to_datetime(start_datetime)),
+    formatted_time = format_time(utc_to_local(start_datetime),
                                  "%Y-%m-%d %H:%M:%S")
 
     if data and isinstance(data[0], dict):
