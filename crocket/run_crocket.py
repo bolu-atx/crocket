@@ -284,11 +284,13 @@ try:
                              'Adding all latest market history to working list.')
                 sleep_time = 30
 
+            logger.debug('Working list size: {}'.format(str(len(working_list))))
             latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
 
             if (latest_datetime - current_datetime).total_seconds() > interval:
 
                 start, stop = get_interval_index(working_list, current_datetime, interval)
+                logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
                 if start != stop:
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
