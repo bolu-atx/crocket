@@ -101,7 +101,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     formatted_time = format_time(utc_to_local(start_datetime),
                                  "%Y-%m-%d %H:%M:%S")
 
-    if data and isinstance(data[0], dict):
+    if data and isinstance(data[0], dict) and len(data) > 0:
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
 
         volume = sum(v)
@@ -294,10 +294,10 @@ try:
                 start, stop = get_interval_index(working_list, current_datetime, interval)
                 logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
-                if start != stop or \
-                        (start == stop and
-                                 (convert_bittrex_timestamp_to_datetime(working_list[start].get('TimeStamp'))
-                                      - current_datetime).total_seconds() <= interval):
+                if start != stop or (start == stop and
+                                             (convert_bittrex_timestamp_to_datetime(
+                                                 working_list[start].get('TimeStamp'))
+                                                  - current_datetime).total_seconds() <= interval):
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
                     formatted_entry = format_bittrex_entry(metrics)
                     db.insert_query(market, formatted_entry)
