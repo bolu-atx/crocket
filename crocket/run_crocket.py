@@ -159,7 +159,6 @@ logger.addHandler(sh)
 
 logger.info('Initialized logger.')
 
-
 # ==============================================================================
 # Environment variables
 # ==============================================================================
@@ -196,14 +195,12 @@ encrypted_username, encrypted_passcode = \
 USERNAME = getpass('Enter username: ')
 
 if cipher.decrypt(encrypted_username) != USERNAME:
-
     logger.debug('Username does not match encrypted username ...')
     exit(1)
 
 PASSCODE = getpass('Enter passcode: ')
 
 if cipher.decrypt(encrypted_passcode) != PASSCODE:
-
     logger.debug('Passcode does not match encrypted passcode ...')
     exit(1)
 
@@ -297,7 +294,10 @@ try:
                 start, stop = get_interval_index(working_list, current_datetime, interval)
                 logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
-                if start != stop:
+                if start != stop or \
+                        (start == stop and
+                                 (convert_bittrex_timestamp_to_datetime(working_list[start].get('TimeStamp'))
+                                      - current_datetime).total_seconds() <= interval):
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
                     formatted_entry = format_bittrex_entry(metrics)
                     db.insert_query(market, formatted_entry)
