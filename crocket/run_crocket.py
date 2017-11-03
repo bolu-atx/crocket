@@ -236,6 +236,7 @@ for market in MARKETS:
 market = MARKETS[0]
 
 failed_attempts = 0
+metrics = None
 
 initial_market_history = bittrex.get_market_history(market).get('result')
 
@@ -317,7 +318,7 @@ try:
                 working_list = working_list[:start]
 
             else:
-                logger.debug('Difference between latest data point to last data point less than interval. '
+                logger.debug('Difference between latest data point to last data point less than specified interval. '
                              'Skipping metrics generation.')
 
         except Exception as e:
