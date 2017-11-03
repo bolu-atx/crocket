@@ -321,6 +321,8 @@ try:
                             current_datetime = current_datetime + timedelta(seconds=interval)
                             logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
                                                                             for k, v in formatted_entry])))
+                    else:
+                        metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
                 working_list = working_list[:start]
 
