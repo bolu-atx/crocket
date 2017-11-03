@@ -249,7 +249,7 @@ try:
     while True:
 
         try:
-            response = bittrex.get_market_history(market).get('result')
+            response = bittrex.get_market_history(market)
 
             if not response.get('success'):
 
