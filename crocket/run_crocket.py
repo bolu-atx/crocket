@@ -101,7 +101,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     formatted_time = format_time(utc_to_local(start_datetime),
                                  "%Y-%m-%d %H:%M:%S")
 
-    if data and isinstance(data[0], dict) and len(data) > 0:
+    if data and isinstance(data[0], dict):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
 
         volume = sum(v)
@@ -294,17 +294,9 @@ try:
                 start, stop = get_interval_index(working_list, current_datetime, interval)
                 logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
-                if start != stop or (start == stop and
-                                             (convert_bittrex_timestamp_to_datetime(
+                if start == stop and (convert_bittrex_timestamp_to_datetime(
                                                  working_list[start].get('TimeStamp'))
-                                                  - current_datetime).total_seconds() <= interval):
-                    metrics = calculate_metrics(working_list[start:stop], current_datetime)
-                    formatted_entry = format_bittrex_entry(metrics)
-                    db.insert_query(market, formatted_entry)
-                    current_datetime = current_datetime + timedelta(seconds=interval)
-                    logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
-                                                                    for k, v in formatted_entry])))
-                else:
+                                                  - current_datetime).total_seconds() <= interval:
                     if metrics and len(metrics) > 0:
                         logger.debug('Generating metrics up until latest time.')
                         latest_time = convert_bittrex_timestamp_to_datetime(metrics[0].get('TimeStamp'))
@@ -323,6 +315,19 @@ try:
                                                                             for k, v in formatted_entry])))
                     else:
                         metrics = calculate_metrics(working_list[start:stop], current_datetime)
+
+                else:
+
+                    if start == stop:
+                        metrics = calculate_metrics(working_list[start], current_datetime)
+                    else:
+                        metrics = calculate_metrics(working_list[start:stop], current_datetime)
+
+                    formatted_entry = format_bittrex_entry(metrics)
+                    db.insert_query(market, formatted_entry)
+                    current_datetime = current_datetime + timedelta(seconds=interval)
+                    logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
+                                                                    for k, v in formatted_entry])))
 
                 working_list = working_list[:start]
 
