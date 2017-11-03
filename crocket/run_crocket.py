@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import Decimal, quantize
 from getpass import getpass
 from json import load as json_load
 from logging import FileHandler, Formatter, StreamHandler, getLogger
@@ -108,7 +108,7 @@ def calculate_metrics(data, start_datetime, digits=8):
         buy_order = sum([1 for x in o if x == 'BUY'])
         sell_order = len(o) - buy_order
 
-        price = (sum([Decimal(x).quantize(decimal_places) for x in p]) / len(p)).quantize(decimal_places)
+        price = (sum([Decimal(x).quantize(decimal_places) for x in p]) / Decimal(len(p))).quantize(decimal_places)
         price_volume_weighted = (sum(
             [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
             decimal_places)
@@ -174,8 +174,8 @@ BASE_COIN = 'BTC'
 
 # Data polling settings
 
-sleep_time = 30 # seconds
-interval = 60 # seconds
+sleep_time = 30  # seconds
+interval = 60  # seconds
 
 # ==============================================================================
 # Run
