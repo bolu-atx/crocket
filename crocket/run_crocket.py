@@ -132,6 +132,8 @@ def get_interval_index(entries, target_datetime, interval):
     :return:
     """
     timestamp_list = [convert_bittrex_timestamp_to_datetime(x.get('TimeStamp')) for x in entries]
+    print(timestamp_list)
+    print(target_datetime)
 
     stop_index = len([x for x in timestamp_list if x > target_datetime])
     start_index = len([x for x in timestamp_list if (x - target_datetime).total_seconds() > interval])
@@ -285,7 +287,10 @@ try:
                 sleep_time = 30
 
             logger.debug('Working list size: {}'.format(str(len(working_list))))
+
             latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
+            logger.debug('CURRENT DATETIME: {}'.format(format_time(current_datetime)))
+            logger.debug('LATEST DATETIME: {}'.format(format_time(latest_datetime)))
 
             if (latest_datetime - current_datetime).total_seconds() > interval:
 
