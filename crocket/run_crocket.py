@@ -235,8 +235,7 @@ for market in MARKETS:
 
 market = MARKETS[0]
 
-constant = 0
-failure = 0
+failed_attempts = 0
 
 initial_market_history = bittrex.get_market_history(market).get('result')
 
@@ -250,76 +249,80 @@ try:
     while True:
 
         try:
-            market_history = bittrex.get_market_history(market).get('result')
+            response = bittrex.get_market_history(market).get('result')
+
+            if not response.get('success'):
+
+                if failed_attempts >= 3:
+                    logger.debug('API request failed 3 times, exiting.')
+                    break
+
+                failed_attempts += 1
+                logger.debug('API query failed, attempting again in 30 seconds.')
+                sleep(30)
+                continue
+
+            failed_attempts = 0
+
+            market_history = response.get('result')
             last_id = working_list[0].get('Id')
+            id_list = [x.get('Id') for x in market_history]
 
-            overlap_index = [x.get('Id') for x in market_history].index(last_id)
+            if last_id in id_list:
+                overlap_index = id_list.index(last_id)
+                working_list = market_history[:overlap_index] + working_list
 
-            working_list = market_history[:overlap_index] + working_list
+                # Set dynamic sleep time based on order volume
+                if overlap_index < 30:
+                    sleep_time = 60
+                else:
+                    sleep_time = 30
+            else:
+                working_list = market_history + working_list
+                logger.debug('Latest ID in working list not found in latest market history. '
+                             'Adding all latest market history to working list.')
+                sleep_time = 30
 
             latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
 
             if (latest_datetime - current_datetime).total_seconds() > interval:
 
                 start, stop = get_interval_index(working_list, current_datetime, interval)
-                metrics = calculate_metrics(working_list[start:stop], current_datetime)
-                formatted_entry = format_bittrex_entry(metrics)
-                db.insert_query(market, formatted_entry)
+
+                if start != stop:
+                    metrics = calculate_metrics(working_list[start:stop], current_datetime)
+                    formatted_entry = format_bittrex_entry(metrics)
+                    db.insert_query(market, formatted_entry)
+                    current_datetime = current_datetime + timedelta(seconds=interval)
+                    logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
+                                                                    for k, v in formatted_entry])))
+                else:
+                    if metrics and len(metrics) > 0:
+                        logger.debug('Generating metrics up until latest time.')
+                        latest_time = convert_bittrex_timestamp_to_datetime(metrics[0].get('TimeStamp'))
+                        while current_datetime < latest_time:
+                            new_metrics = calculate_metrics(working_list[start:stop], current_datetime)
+
+                            metrics['volume'] = new_metrics.get('volume')
+                            metrics['buy_order'] = new_metrics.get('buy_order')
+                            metrics['sell_order'] = new_metrics.get('sell_order')
+                            metrics['time'] = new_metrics.get('time')
+
+                            formatted_entry = format_bittrex_entry(metrics)
+                            db.insert_query(market, formatted_entry)
+                            current_datetime = current_datetime + timedelta(seconds=interval)
+                            logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
+                                                                            for k, v in formatted_entry])))
 
                 working_list = working_list[:start]
-                current_datetime = current_datetime + timedelta(seconds=interval)
-
-                constant = 0
-
-            elif constant > 2:
-
-                start, stop = get_interval_index(working_list, current_datetime, interval)
-                new_metrics = calculate_metrics(working_list[start:stop],
-                                                current_datetime)  # All metrics should be 0
-
-                metrics['volume'] = new_metrics.get('volume')
-                metrics['buy_order'] = new_metrics.get('buy_order')
-                metrics['sell_order'] = new_metrics.get('sell_order')
-                metrics['time'] = new_metrics.get('time')
-
-                formatted_entry = format_bittrex_entry(metrics)
-                db.insert_query(market, formatted_entry)
-
-                working_list = working_list[:start]
-                current_datetime = current_datetime + timedelta(seconds=interval)
 
             else:
-                constant += 1
-                logger.debug('Latest data point within interval. Skipping metrics generation.')
+                logger.debug('Difference between latest data point to last data point less than interval. '
+                             'Skipping metrics generation.')
 
-            # Set dynamic sleep time based on order volume
-            if overlap_index < 30:
-                sleep_time = 60
-            else:
-                sleep_time = 30
-
-        except ValueError:
-            logger.debug('Latest ID in working list not found in latest market history. Adding all latest market history to working list.')
-
-            if market_history:
-                working_list = market_history + working_list
-
-                start, stop = get_interval_index(working_list, current_datetime, interval)
-
-                metrics = calculate_metrics(working_list, current_datetime)
-                formatted_entry = format_bittrex_entry(metrics)
-                db.insert_query(market, formatted_entry)
-
-                current_datetime = current_datetime + timedelta(seconds=interval)
-
-                sleep_time = 30
-            else:
-                failure += 1
-                logger.error('Failed to get data via Bittrex API. Attempt: {}'.format(failure))
-
-                if failure == 3:
-                    logger.error('Failed to get data via Bittrex API. Attempt: {}. Exiting...'.format(failure))
-                    exit(1)
+        except Exception as e:
+            logger.debug('LOOK HERE - EXCEPTION!!!')
+            logger.debug(e)
 
         sleep(sleep_time)
 
