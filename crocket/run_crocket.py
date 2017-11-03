@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, quantize
+from decimal import Decimal
 from getpass import getpass
 from json import load as json_load
 from logging import FileHandler, Formatter, StreamHandler, getLogger
