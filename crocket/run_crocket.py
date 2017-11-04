@@ -103,7 +103,7 @@ def calculate_metrics(data, start_datetime, digits=8):
 
     if data and isinstance(data[0], dict):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
-
+        print(p, v, o)
         volume = sum(v)
         buy_order = sum([1 for x in o if x == 'BUY'])
         sell_order = len(o) - buy_order
@@ -164,7 +164,8 @@ logger.info('Initialized logger.')
 # ==============================================================================
 
 HOME_DIRECTORY_PATH = environ['HOME']
-CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials.json')
+# CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials.json')
+CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials_unlocked.json')
 
 BITTREX_CREDENTIALS_PATH = join(HOME_DIRECTORY_PATH, 'bittrex_credentials.json')
 
@@ -184,27 +185,29 @@ interval = 60  # seconds
 
 logger.debug('Starting CRocket ....................')
 
+USERNAME, PASSCODE = get_credentials('~/.credentials_unlocked.json')
+
 # Key to decrypt SQL credentials (username/password) from file
-KEY = getpass('Enter decryption key: ')
-
-cipher = AESCipher(KEY)
-
-encrypted_username, encrypted_passcode = \
-    map(str.encode, get_credentials(CREDENTIALS_FILE_PATH))
-
-USERNAME = getpass('Enter username: ')
-
-if cipher.decrypt(encrypted_username) != USERNAME:
-    logger.debug('Username does not match encrypted username ...')
-    exit(1)
-
-PASSCODE = getpass('Enter passcode: ')
-
-if cipher.decrypt(encrypted_passcode) != PASSCODE:
-    logger.debug('Passcode does not match encrypted passcode ...')
-    exit(1)
-
-logger.debug('Successfully entered credentials ...')
+# KEY = getpass('Enter decryption key: ')
+#
+# cipher = AESCipher(KEY)
+#
+# encrypted_username, encrypted_passcode = \
+#     map(str.encode, get_credentials(CREDENTIALS_FILE_PATH))
+#
+# USERNAME = getpass('Enter username: ')
+#
+# if cipher.decrypt(encrypted_username) != USERNAME:
+#     logger.debug('Username does not match encrypted username ...')
+#     exit(1)
+#
+# PASSCODE = getpass('Enter passcode: ')
+#
+# if cipher.decrypt(encrypted_passcode) != PASSCODE:
+#     logger.debug('Passcode does not match encrypted passcode ...')
+#     exit(1)
+#
+# logger.debug('Successfully entered credentials ...')
 
 # Load key/secret for bittrex API
 with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
