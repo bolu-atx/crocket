@@ -101,6 +101,9 @@ def calculate_metrics(data, start_datetime, digits=8):
     formatted_time = format_time(utc_to_local(start_datetime),
                                  "%Y-%m-%d %H:%M:%S")
 
+    print("DATA\n\n\n\n")
+    print(data)
+
     if data and isinstance(data[0], dict):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
         print(p, v, o)
