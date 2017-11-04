@@ -306,8 +306,8 @@ try:
                         new_metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
                         metrics['volume'] = new_metrics.get('volume')
-                        metrics['buy_order'] = new_metrics.get('buy_order')
-                        metrics['sell_order'] = new_metrics.get('sell_order')
+                        metrics['buyorder'] = new_metrics.get('buyorder')
+                        metrics['sellorder'] = new_metrics.get('sellorder')
                         metrics['time'] = new_metrics.get('time')
 
                         formatted_entry = format_bittrex_entry(metrics)
