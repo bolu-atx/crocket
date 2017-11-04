@@ -114,8 +114,8 @@ def calculate_metrics(data, start_datetime, digits=8):
             decimal_places)
 
     metrics = {'basevolume': volume,
-               'buy_order': buy_order,
-               'sell_order': sell_order,
+               'buyorder': buy_order,
+               'sellorder': sell_order,
                'price': price,
                'wprice': price_volume_weighted,
                'time': formatted_time}
@@ -340,7 +340,7 @@ try:
 
         except Exception as e:
             logger.debug('LOOK HERE - EXCEPTION!!!')
-            logger.debug(e)
+            logger.debug(repr(e))
 
         sleep(sleep_time)
 
