@@ -295,7 +295,7 @@ try:
                 logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
                 if start == stop and (convert_bittrex_timestamp_to_datetime(
-                                                 working_list[start].get('TimeStamp'))
+                                                 working_list[start - 1].get('TimeStamp'))
                                                   - current_datetime).total_seconds() <= interval:
                     if metrics and len(metrics) > 0:
                         logger.debug('Generating metrics up until latest time.')
@@ -319,7 +319,7 @@ try:
                 else:
 
                     if start == stop:
-                        metrics = calculate_metrics(working_list[start], current_datetime)
+                        metrics = calculate_metrics(working_list[start - 1], current_datetime)
                     else:
                         metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
