@@ -185,7 +185,7 @@ interval = 60  # seconds
 
 logger.debug('Starting CRocket ....................')
 
-USERNAME, PASSCODE = get_credentials('~/.credentials_unlocked.json')
+USERNAME, PASSCODE = get_credentials(CREDENTIALS_FILE_PATH)
 
 # Key to decrypt SQL credentials (username/password) from file
 # KEY = getpass('Enter decryption key: ')
