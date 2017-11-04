@@ -251,96 +251,91 @@ try:
 
     while True:
 
-        try:
-            response = bittrex.get_market_history(market)
+        response = bittrex.get_market_history(market)
 
-            if not response.get('success'):
+        if not response.get('success'):
 
-                if failed_attempts >= 3:
-                    logger.debug('API request failed 3 times, exiting.')
-                    break
+            if failed_attempts >= 3:
+                logger.debug('API request failed 3 times, exiting.')
+                break
 
-                failed_attempts += 1
-                logger.debug('API query failed, attempting again in 30 seconds.')
-                sleep(30)
-                continue
+            failed_attempts += 1
+            logger.debug('API query failed, attempting again in 30 seconds.')
+            sleep(30)
+            continue
 
-            failed_attempts = 0
+        failed_attempts = 0
 
-            market_history = response.get('result')
-            last_id = working_list[0].get('Id')
-            id_list = [x.get('Id') for x in market_history]
+        market_history = response.get('result')
+        last_id = working_list[0].get('Id')
+        id_list = [x.get('Id') for x in market_history]
 
-            if last_id in id_list:
-                overlap_index = id_list.index(last_id)
-                working_list = market_history[:overlap_index] + working_list
+        if last_id in id_list:
+            overlap_index = id_list.index(last_id)
+            working_list = market_history[:overlap_index] + working_list
 
-                # Set dynamic sleep time based on order volume
-                if overlap_index < 30:
-                    sleep_time = 60
-                else:
-                    sleep_time = 30
+            # Set dynamic sleep time based on order volume
+            if overlap_index < 30:
+                sleep_time = 60
             else:
-                working_list = market_history + working_list
-                logger.debug('Latest ID in working list not found in latest market history. '
-                             'Adding all latest market history to working list.')
                 sleep_time = 30
+        else:
+            working_list = market_history + working_list
+            logger.debug('Latest ID in working list not found in latest market history. '
+                         'Adding all latest market history to working list.')
+            sleep_time = 30
 
-            logger.debug('Working list size: {}'.format(str(len(working_list))))
+        logger.debug('Working list size: {}'.format(str(len(working_list))))
 
-            latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
-            logger.debug('CURRENT DATETIME: {}'.format(format_time(current_datetime)))
-            logger.debug('LATEST DATETIME: {}'.format(format_time(latest_datetime)))
+        latest_datetime = convert_bittrex_timestamp_to_datetime(working_list[0].get('TimeStamp'))
+        logger.debug('CURRENT DATETIME: {}'.format(format_time(current_datetime)))
+        logger.debug('LATEST DATETIME: {}'.format(format_time(latest_datetime)))
 
-            if (latest_datetime - current_datetime).total_seconds() > interval:
+        if (latest_datetime - current_datetime).total_seconds() > interval:
 
-                start, stop = get_interval_index(working_list, current_datetime, interval)
-                logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
+            start, stop = get_interval_index(working_list, current_datetime, interval)
+            logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
-                if start == stop and (convert_bittrex_timestamp_to_datetime(
-                                                 working_list[start - 1].get('TimeStamp'))
-                                                  - current_datetime).total_seconds() <= interval:
-                    if metrics and len(metrics) > 0:
-                        logger.debug('Generating metrics up until latest time.')
-                        latest_time = convert_bittrex_timestamp_to_datetime(metrics[0].get('TimeStamp'))
-                        while current_datetime < latest_time:
-                            new_metrics = calculate_metrics(working_list[start:stop], current_datetime)
+            if start == stop and (convert_bittrex_timestamp_to_datetime(
+                                             working_list[start - 1].get('TimeStamp'))
+                                              - current_datetime).total_seconds() <= interval:
+                if metrics and len(metrics) > 0:
+                    logger.debug('Generating metrics up until latest time.')
+                    latest_time = convert_bittrex_timestamp_to_datetime(metrics[0].get('TimeStamp'))
+                    while current_datetime < latest_time:
+                        new_metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
-                            metrics['volume'] = new_metrics.get('volume')
-                            metrics['buy_order'] = new_metrics.get('buy_order')
-                            metrics['sell_order'] = new_metrics.get('sell_order')
-                            metrics['time'] = new_metrics.get('time')
+                        metrics['volume'] = new_metrics.get('volume')
+                        metrics['buy_order'] = new_metrics.get('buy_order')
+                        metrics['sell_order'] = new_metrics.get('sell_order')
+                        metrics['time'] = new_metrics.get('time')
 
-                            formatted_entry = format_bittrex_entry(metrics)
-                            db.insert_query(market, formatted_entry)
-                            current_datetime = current_datetime + timedelta(seconds=interval)
-                            logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
-                                                                            for k, v in formatted_entry])))
-                    else:
-                        metrics = calculate_metrics(working_list[start:stop], current_datetime)
-
+                        formatted_entry = format_bittrex_entry(metrics)
+                        db.insert_query(market, formatted_entry)
+                        current_datetime = current_datetime + timedelta(seconds=interval)
+                        logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
+                                                                        for k, v in formatted_entry])))
                 else:
-
-                    if start == stop:
-                        metrics = calculate_metrics(working_list[start - 1], current_datetime)
-                    else:
-                        metrics = calculate_metrics(working_list[start:stop], current_datetime)
-
-                    formatted_entry = format_bittrex_entry(metrics)
-                    db.insert_query(market, formatted_entry)
-                    current_datetime = current_datetime + timedelta(seconds=interval)
-                    logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
-                                                                    for k, v in formatted_entry])))
-
-                working_list = working_list[:start]
+                    metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
             else:
-                logger.debug('Difference between latest data point to last data point less than specified interval. '
-                             'Skipping metrics generation.')
 
-        except Exception as e:
-            logger.debug('LOOK HERE - EXCEPTION!!!')
-            logger.debug(repr(e))
+                if start == stop:
+                    metrics = calculate_metrics(working_list[start - 1], current_datetime)
+                else:
+                    metrics = calculate_metrics(working_list[start:stop], current_datetime)
+
+                formatted_entry = format_bittrex_entry(metrics)
+                db.insert_query(market, formatted_entry)
+                current_datetime = current_datetime + timedelta(seconds=interval)
+                logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
+                                                                for k, v in formatted_entry])))
+
+            working_list = working_list[:start]
+
+        else:
+            logger.debug('Difference between latest data point to last data point less than specified interval. '
+                         'Skipping metrics generation.')
 
         sleep(sleep_time)
 
