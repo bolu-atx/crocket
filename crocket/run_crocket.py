@@ -107,7 +107,8 @@ def calculate_metrics(data, start_datetime, digits=8):
     if data and isinstance(data[0], dict):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
         print(p, v, o)
-        volume = sum(v)
+
+        volume = Decimal(sum(v)).quantize(decimal_places)
         buy_order = sum([1 for x in o if x == 'BUY'])
         sell_order = len(o) - buy_order
 
@@ -324,7 +325,7 @@ try:
             else:
 
                 if start == stop:
-                    metrics = calculate_metrics(working_list[start - 1], current_datetime)
+                    metrics = calculate_metrics([working_list[start - 1]], current_datetime)
                 else:
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
