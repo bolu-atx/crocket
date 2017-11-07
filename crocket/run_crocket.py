@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from getpass import getpass
 from json import load as json_load
 from logging import FileHandler, Formatter, StreamHandler, getLogger
 from os import environ
@@ -9,7 +8,6 @@ from sys import exit
 from time import sleep
 
 from requests.exceptions import ConnectionError
-from utilities.passcode import AESCipher
 
 from bittrex.bittrex2 import Bittrex
 from sql.sql import Database
@@ -60,7 +58,7 @@ def filter_bittrex_markets(markets, base_coin):
     :param base_coin: Base currency
     :return: (list)
     """
-    return [x.get('MarketName') for x in markets.get('result')
+    return [x.get('MarketName') for x in markets
             if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
 
 
@@ -188,28 +186,6 @@ logger.debug('Starting CRocket ....................')
 
 USERNAME, PASSCODE = get_credentials(CREDENTIALS_FILE_PATH)
 
-# Key to decrypt SQL credentials (username/password) from file
-# KEY = getpass('Enter decryption key: ')
-#
-# cipher = AESCipher(KEY)
-#
-# encrypted_username, encrypted_passcode = \
-#     map(str.encode, get_credentials(CREDENTIALS_FILE_PATH))
-#
-# USERNAME = getpass('Enter username: ')
-#
-# if cipher.decrypt(encrypted_username) != USERNAME:
-#     logger.debug('Username does not match encrypted username ...')
-#     exit(1)
-#
-# PASSCODE = getpass('Enter passcode: ')
-#
-# if cipher.decrypt(encrypted_passcode) != PASSCODE:
-#     logger.debug('Passcode does not match encrypted passcode ...')
-#     exit(1)
-#
-# logger.debug('Successfully entered credentials ...')
-
 # Load key/secret for bittrex API
 with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
     BITTREX_CREDENTIALS = json_load(f)
@@ -275,16 +251,10 @@ try:
             overlap_index = id_list.index(last_id)
             working_list = market_history[:overlap_index] + working_list
 
-            # Set dynamic sleep time based on order volume
-            if overlap_index < 30:
-                sleep_time = 60
-            else:
-                sleep_time = 30
         else:
             working_list = market_history + working_list
             logger.debug('Latest ID in working list not found in latest market history. '
                          'Adding all latest market history to working list.')
-            sleep_time = 30
 
         logger.debug('Working list size: {}'.format(str(len(working_list))))
 

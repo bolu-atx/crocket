@@ -8,7 +8,7 @@ from hashlib import sha512
 
 from urllib.parse import urlencode
 
-import requests
+from requests import get
 
 BUY_ORDERBOOK = 'buy'
 SELL_ORDERBOOK = 'sell'
@@ -44,10 +44,19 @@ PROTECTION_PRV = 'prv'  # authenticated methods
 
 
 def using_requests(request_url, apisign):
-    return requests.get(
+
+    return get(
         request_url,
         headers={"apisign": apisign}
     ).json()
+
+
+def return_request_input(request_url, apisign):
+
+    return {
+        'url': request_url,
+        'apisign': apisign
+    }
 
 
 class Bittrex(object):
@@ -55,25 +64,14 @@ class Bittrex(object):
     Used for requesting Bittrex with API key and API secret
     """
 
-    def __init__(self, api_key, api_secret, calls_per_second=1, dispatch=using_requests, api_version=API_V1_1):
+    def __init__(self, api_key, api_secret,
+                 dispatch=using_requests,
+                 api_version=API_V1_1):
         self.api_key = str(api_key) if api_key is not None else ''
         self.api_secret = str(api_secret) if api_secret is not None else ''
         self.dispatch = dispatch
-        self.call_rate = 1.0 / calls_per_second
         self.last_call = None
         self.api_version = api_version
-
-    def wait(self):
-        if self.last_call is None:
-            self.last_call = time.time()
-        else:
-            now = time.time()
-            passed = now - self.last_call
-            if passed < self.call_rate:
-                # print("sleep")
-                time.sleep(1.0 - passed)
-
-            self.last_call = time.time()
 
     def _api_query(self, protection=None, path_dict=None, options=None):
         """
@@ -105,8 +103,6 @@ class Bittrex(object):
             apisign = hmac_new(self.api_secret.encode(),
                                request_url.encode(),
                                sha512).hexdigest()
-
-            self.wait()
 
             return self.dispatch(request_url, apisign)
 
