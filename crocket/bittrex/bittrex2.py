@@ -70,7 +70,6 @@ class Bittrex(object):
         self.api_key = str(api_key) if api_key is not None else ''
         self.api_secret = str(api_secret) if api_secret is not None else ''
         self.dispatch = dispatch
-        self.last_call = None
         self.api_version = api_version
 
     def _api_query(self, protection=None, path_dict=None, options=None):

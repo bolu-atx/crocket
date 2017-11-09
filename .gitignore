@@ -104,3 +104,5 @@ ENV/
 
 # jsons with credentials
 *.json
+
+.DS_Store
