@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta
 from json import load as json_load
 from logging import FileHandler, Formatter, StreamHandler, getLogger
 from os import environ
@@ -9,128 +8,11 @@ from time import sleep
 
 from requests.exceptions import ConnectionError
 
-from bittrex.bittrex2 import Bittrex
+from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry
 from sql.sql import Database
 from utilities.credentials import get_credentials
-
-
-# ==============================================================================
-# Functions
-# ==============================================================================
-
-def format_time(datetime_to_format, time_format="%Y-%m-%d %H:%M:%S.%f"):
-    """
-    Format datetime to string.
-    Ex: 2017-09-22 12:28:22
-    :return:
-    """
-    return datetime_to_format.strftime(time_format)
-
-
-def convert_bittrex_timestamp_to_datetime(timestamp, time_format="%Y-%m-%dT%H:%M:%S.%f"):
-    """
-    Convert timestamp string to datetime.
-    :param timestamp:
-    :param time_format:
-    :return:
-    """
-    try:
-        converted_datetime = datetime.strptime(timestamp, time_format)
-    except ValueError:
-        converted_datetime = datetime.strptime('{}.0'.format(timestamp), time_format)
-
-    return converted_datetime
-
-
-def utc_to_local(utc_dt):
-    """
-    Convert UTC datetime to local datetime.
-    :param utc_dt:
-    :return:
-    """
-    return utc_dt.replace(tzinfo=timezone.utc).astimezone(tz=None)
-
-
-def filter_bittrex_markets(markets, base_coin):
-    """
-    Filter all Bittrex markets using a base currency.
-    :param markets: All bittrex markets
-    :param base_coin: Base currency
-    :return: (list)
-    """
-    return [x.get('MarketName') for x in markets
-            if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
-
-
-def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 'buyorder', 'sellorder')):
-    """
-    Format data object (summary per interval) into SQL row format.
-    :param data: Summary of market per interval
-    :param fields: Keys to add in data
-    :return: (list) tuples
-    """
-
-    return fields, [data.get(x) for x in fields]
-
-
-def calculate_metrics(data, start_datetime, digits=8):
-    """
-    Calculate metrics.
-    :param data: (list(dict)) Buy/sell orders over an interval
-    :param start_datetime: Start of interval
-    :param digits: (int) Number of decimal places
-    :return:
-    """
-    decimal_places = Decimal(10) ** (digits * -1)
-
-    volume = 0
-    buy_order = 0
-    sell_order = 0
-    price = 0
-    price_volume_weighted = 0
-    formatted_time = format_time(utc_to_local(start_datetime),
-                                 "%Y-%m-%d %H:%M:%S")
-
-    if data and isinstance(data[0], dict):
-        p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
-        print(p, v, o)
-
-        volume = Decimal(sum(v)).quantize(decimal_places)
-        buy_order = sum([1 for x in o if x == 'BUY'])
-        sell_order = len(o) - buy_order
-
-        price = (sum([Decimal(x).quantize(decimal_places) for x in p]) / Decimal(len(p))).quantize(decimal_places)
-        price_volume_weighted = (sum(
-            [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
-            decimal_places)
-
-    metrics = {'basevolume': volume,
-               'buyorder': buy_order,
-               'sellorder': sell_order,
-               'price': price,
-               'wprice': price_volume_weighted,
-               'time': formatted_time}
-
-    return metrics
-
-
-def get_interval_index(entries, target_datetime, interval):
-    """
-    Get index of start and stop positions of interval from a list of data entries.
-    :param entries: (list(dict))
-    :param target_datetime: (datetime) Start of interval
-    :param interval: (int) Seconds between data points
-    :return:
-    """
-    timestamp_list = [convert_bittrex_timestamp_to_datetime(x.get('TimeStamp')) for x in entries]
-    print(timestamp_list)
-    print(target_datetime)
-
-    stop_index = len([x for x in timestamp_list if x > target_datetime])
-    start_index = len([x for x in timestamp_list if (x - target_datetime).total_seconds() > interval])
-
-    return start_index, stop_index
-
+from utilities.metrics import calculate_metrics, get_interval_index
+from utilities.time import format_time, convert_bittrex_timestamp_to_datetime
 
 # ==============================================================================
 # Initialize logger
@@ -256,7 +138,8 @@ try:
 
         if (latest_datetime - current_datetime).total_seconds() > interval:
 
-            start, stop = get_interval_index(working_list, current_datetime, interval)
+            timestamp_list = [convert_bittrex_timestamp_to_datetime(x.get('TimeStamp')) for x in working_list]
+            start, stop = get_interval_index(timestamp_list, current_datetime, interval)
             logger.debug('START: {}, STOP: {}'.format(str(start), str(stop)))
 
             if start == stop and (convert_bittrex_timestamp_to_datetime(
@@ -276,8 +159,6 @@ try:
                         fields, row = format_bittrex_entry(metrics)
                         db.insert_query(market, fields, row)
                         current_datetime = current_datetime + timedelta(seconds=interval)
-                        logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
-                                                                        for k, v in formatted_entry])))
                 else:
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
@@ -291,8 +172,6 @@ try:
                 fields, row = format_bittrex_entry(metrics)
                 db.insert_query(market, fields, row)
                 current_datetime = current_datetime + timedelta(seconds=interval)
-                logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
-                                                                for k, v in formatted_entry])))
 
             working_list = working_list[:start]
 

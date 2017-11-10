@@ -1,7 +1,3 @@
-"""
-   See https://bittrex.com/Home/Api
-"""
-
 import time
 from hmac import new as hmac_new
 from hashlib import sha512
@@ -57,6 +53,28 @@ def return_request_input(request_url, apisign):
         'url': request_url,
         'apisign': apisign
     }
+
+
+def filter_bittrex_markets(markets, base_coin):
+    """
+    Filter all Bittrex markets using a base currency.
+    :param markets: All bittrex markets
+    :param base_coin: Base currency
+    :return: (list)
+    """
+    return [x.get('MarketName') for x in markets
+            if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
+
+
+def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 'buyorder', 'sellorder')):
+    """
+    Format data object (summary per interval) into SQL row format.
+    :param data: Summary of market per interval
+    :param fields: Keys to add in data
+    :return: (list) tuples
+    """
+
+    return fields, [data.get(x) for x in fields]
 
 
 class Bittrex(object):
