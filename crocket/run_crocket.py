@@ -62,23 +62,15 @@ def filter_bittrex_markets(markets, base_coin):
             if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
 
 
-def format_bittrex_entry(data):
+def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 'buyorder', 'sellorder')):
     """
     Format data object (summary per interval) into SQL row format.
     :param data: Summary of market per interval
+    :param fields: Keys to add in data
     :return: (list) tuples
     """
 
-    formatted_entries = []
-
-    formatted_entries.append(('time', data.get('time')))
-    formatted_entries.append(('price', data.get('price')))
-    formatted_entries.append(('wprice', data.get('wprice')))
-    formatted_entries.append(('basevolume', data.get('basevolume')))
-    formatted_entries.append(('buyorder', data.get('buyorder')))
-    formatted_entries.append(('sellorder', data.get('sellorder')))
-
-    return formatted_entries
+    return fields, [data.get(x) for x in fields]
 
 
 def calculate_metrics(data, start_datetime, digits=8):
@@ -281,8 +273,8 @@ try:
                         metrics['sellorder'] = new_metrics.get('sellorder')
                         metrics['time'] = new_metrics.get('time')
 
-                        formatted_entry = format_bittrex_entry(metrics)
-                        db.insert_query(market, formatted_entry)
+                        fields, row = format_bittrex_entry(metrics)
+                        db.insert_query(market, fields, row)
                         current_datetime = current_datetime + timedelta(seconds=interval)
                         logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
                                                                         for k, v in formatted_entry])))
@@ -296,8 +288,8 @@ try:
                 else:
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
-                formatted_entry = format_bittrex_entry(metrics)
-                db.insert_query(market, formatted_entry)
+                fields, row = format_bittrex_entry(metrics)
+                db.insert_query(market, fields, row)
                 current_datetime = current_datetime + timedelta(seconds=interval)
                 logger.debug('Entry added: {}'.format(';'.join(['{}: {}'.format(k, str(v))
                                                                 for k, v in formatted_entry])))

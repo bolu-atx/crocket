@@ -54,6 +54,34 @@ class Database:
                 if self.logger:
                     self.logger.debug(e)
 
+    def insert_transaction_query(self, tables, columns, values):
+        """
+        Execute multiple insert queries in a single transaction
+        :param tables:
+        :param columns:
+        :param values:
+        :return:
+        """
+
+        formatted_columns = [col for col in ','.join(columns)]
+
+        query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(table, col, val)
+                 for table, col, val in zip(tables, formatted_columns, values)]
+
+        query = 'START TRANSACTION;{};COMMIT;'.format(';'.join(query))
+
+        with closing(self.connection.cursor()) as cursor:
+
+            try:
+
+                cursor.execute(query)
+                self.connection.commit()
+
+            except (OperationalError, ProgrammingError) as e:
+
+                if self.logger:
+                    self.logger.debug(e)
+
     def select_query(self, table, columns):
         """
         Execute a select query.
@@ -82,13 +110,12 @@ class Database:
 
                 cursor.execute(query)
                 entries = list(cursor)
+                return entries
 
             except OperationalError as e:
 
                 if self.logger:
                     self.logger.debug(e)
-
-        return entries
 
     def create_price_table(self, table_name):
         """
