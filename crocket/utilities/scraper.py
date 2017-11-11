@@ -1,7 +1,7 @@
 from copy import deepcopy
 from decimal import Decimal
 from .time import format_time, utc_to_local
-from time import timedelta
+from datetime import timedelta
 
 from ..bittrex.bittrex2 import convert_bittrex_timestamp_to_datetime, format_bittrex_entry
 
