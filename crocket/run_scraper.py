@@ -15,7 +15,7 @@ from requests_futures.sessions import FuturesSession
 from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry, return_request_input
 from sql.sql import Database
 from utilities.credentials import get_credentials
-from utilities.scraper import calculate_metrics, get_interval_index, process_data
+from scraper_helper import process_data
 from utilities.network import configure_ip, process_response
 
 # ==============================================================================
