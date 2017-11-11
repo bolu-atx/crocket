@@ -60,7 +60,7 @@ class Database:
         :param entries: tuple(market, columns, values)
         :return:
         """
-
+        print(entries)
         query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(entry[0], ','.join(entry[1]), ','.join(entry[2]))
                  for entry in entries]
 
