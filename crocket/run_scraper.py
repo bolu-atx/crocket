@@ -53,8 +53,6 @@ MARKETS_LIST_PATH = '/home/b3arjuden/crocket/markets.txt'
 HOSTNAME = 'localhost'
 DATABASE_NAME = 'BITTREX2'
 
-BASE_COIN = 'BTC'
-
 # Data polling settings
 
 sleep_time = 30  # seconds
@@ -108,7 +106,7 @@ response_dict, working_data = {}, {}
 futures = []
 
 current_datetime = datetime.now().astimezone(tz=None)
-current_datetime = {k:current_datetime for k in MARKETS}
+current_datetime = {k: current_datetime for k in MARKETS}
 last_price = {k: Decimal(0) for k in MARKETS}
 
 try:
@@ -178,6 +176,8 @@ try:
                             if api_retry >= MAX_API_RETRY:
                                 print('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
                                                                                               future.market))
+                                break
+
                             pass
 
                     print('Retried API call for {} successful.'.format(future.market))
