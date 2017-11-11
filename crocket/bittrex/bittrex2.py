@@ -74,7 +74,7 @@ def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 
     :return: (list) tuples
     """
 
-    return [fields], [data.get(x) for x in fields]
+    return fields, tuple(data.get(x) for x in fields)
 
 
 class Bittrex(object):
