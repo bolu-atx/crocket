@@ -54,19 +54,15 @@ class Database:
                 if self.logger:
                     self.logger.debug(e)
 
-    def insert_transaction_query(self, tables, columns, values):
+    def insert_transaction_query(self, entries):
         """
         Execute multiple insert queries in a single transaction
-        :param tables:
-        :param columns:
-        :param values:
+        :param entries: tuple(market, columns, values)
         :return:
         """
 
-        formatted_columns = [col for col in ','.join(columns)]
-
-        query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(table, col, val)
-                 for table, col, val in zip(tables, formatted_columns, values)]
+        query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(table, ','.join(col), ','.join(val))
+                 for table, col, val in zip(*entries)]
 
         query = 'START TRANSACTION;{};COMMIT;'.format(';'.join(query))
 
