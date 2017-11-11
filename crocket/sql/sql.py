@@ -61,8 +61,8 @@ class Database:
         :return:
         """
 
-        query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(table, ','.join(col), ','.join(val))
-                 for table, col, val in zip(*entries)]
+        query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(table, ','.join(cols), ','.join(vals))
+                 for table, cols, vals in entries]
 
         query = 'START TRANSACTION;{};COMMIT;'.format(';'.join(query))
 
