@@ -191,7 +191,8 @@ try:
             working_data, current_datetime, last_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price)
 
-            db.insert_transaction_query(entries)
+            if entries:
+                db.insert_transaction_query(entries)
 
             print([len(working_data.get(x)) for x in working_data])
 
