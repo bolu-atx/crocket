@@ -3,7 +3,7 @@ from decimal import Decimal
 from .time import format_time, utc_to_local
 from datetime import timedelta
 
-from ..bittrex.bittrex2 import convert_bittrex_timestamp_to_datetime, format_bittrex_entry
+from crocket.bittrex.bittrex2 import convert_bittrex_timestamp_to_datetime, format_bittrex_entry
 
 
 def get_interval_index(timestamp_list, target_datetime, interval):
