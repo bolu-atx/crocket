@@ -193,6 +193,7 @@ try:
 
             if entries:
                 db.insert_transaction_query(entries)
+                print('Inserted {} entries to database.'.format(str(len(entries))))
 
             print([len(working_data.get(x)) for x in working_data])
 
