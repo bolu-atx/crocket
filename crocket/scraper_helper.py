@@ -61,7 +61,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     return metrics
 
 
-def process_data(input_data, working_data, market_datetime, last_price, interval=60):
+def process_data(input_data, working_data, market_datetime, last_price, weighted_price, interval=60):
     entries = []
 
     if not working_data:
@@ -100,6 +100,7 @@ def process_data(input_data, working_data, market_datetime, last_price, interval
                     metrics = calculate_metrics(working_list[start:stop], current_datetime)
 
                     metrics['price'] = last_price.get(market)
+                    metrics['wprice'] = weighted_price.get(market)
 
                     fields, values = format_bittrex_entry(metrics)
                     entries.append((market, fields, values))
@@ -115,7 +116,8 @@ def process_data(input_data, working_data, market_datetime, last_price, interval
 
                 market_datetime[market] = current_datetime + timedelta(seconds=interval)
                 last_price[market] = metrics.get('price')
+                weighted_price[market] = metrics.get('wprice')
 
             working_data[market] = working_list[:start]
 
-    return working_data, market_datetime, last_price, entries
+    return working_data, market_datetime, last_price, weighted_price, entries

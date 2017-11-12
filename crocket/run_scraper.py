@@ -108,6 +108,7 @@ futures = []
 current_datetime = datetime.now().astimezone(tz=None)
 current_datetime = {k: current_datetime for k in MARKETS}
 last_price = {k: Decimal(0) for k in MARKETS}
+weighted_price = {k: Decimal(0) for k in MARKETS}
 
 try:
 
@@ -188,8 +189,8 @@ try:
 
             start = time()
 
-            working_data, current_datetime, last_price, entries = \
-                process_data(response_dict, working_data, current_datetime, last_price)
+            working_data, current_datetime, last_price, weighted_price, entries = \
+                process_data(response_dict, working_data, current_datetime, last_price, weighted_price)
 
             if entries:
                 db.insert_transaction_query(entries)
