@@ -48,7 +48,7 @@ BITTREX_CREDENTIALS_PATH = join(HOME_DIRECTORY_PATH, 'bittrex_credentials.json')
 
 PROXY_LIST_PATH = '/home/b3arjuden/crocket/proxy_list.txt'
 
-MARKETS_LIST_PATH = '/home/b3arjuden/crocket/markets.txt'
+MARKETS_LIST_PATH = '/home/b3arjuden/crocket/markets_downsample.txt'
 
 HOSTNAME = 'localhost'
 DATABASE_NAME = 'BITTREX2'
