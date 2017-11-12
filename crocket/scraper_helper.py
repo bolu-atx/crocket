@@ -61,7 +61,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     return metrics
 
 
-def process_data(input_data, working_data, market_datetime, last_price, weighted_price, interval=60):
+def process_data(input_data, working_data, market_datetime, last_price, weighted_price, logger, interval=60):
     entries = []
 
     if not working_data:
@@ -81,8 +81,8 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
             working_list = input_list[:overlap_index] + working_list
         else:
             working_list = input_list + working_list
-            print('Latest ID in {} working list not found in input data. '
-                  'Adding all input data to working list.')
+            logger.debug('SKIPPED NUMBER OF ORDERS BECAUSE INTERVAL BETWEEN API CALLS TOO SHORT!!!!!!!!')
+            logger.debug('Latest ID in {} working list not found in input data. Adding all input data to working list.')
 
         working_data[market] = working_list
 

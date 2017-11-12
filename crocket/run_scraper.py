@@ -141,23 +141,18 @@ try:
 
                 futures.append(response)
 
-            stop = time()
-            time1 = stop - start
-            print('Async request time: {}s'.format(str(time1)))
-
-            start = time()
             for future in as_completed(futures):
 
                 try:
                     response_dict[future.market] = future.result().data.get('result')
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                    print('Failed API call for {}.'.format(future.market))
+                    logger.debug('Failed API call for {}.'.format(future.market))
 
                     api_retry = 0
 
                     while True:
 
-                        print('Retrying...')
+                        logger.debug('Retrying...')
                         r = randint(0, num_proxies - 1)
                         proxy = configure_ip(PROXIES[r])
 
@@ -172,40 +167,33 @@ try:
 
                         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
                             api_retry += 1
-                            print('Retried API call failed.')
+                            logger.debug('Retried API call failed.')
 
                             if api_retry >= MAX_API_RETRY:
-                                print('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
+                                logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
                                                                                               future.market))
                                 break
 
                             pass
 
-                    print('Retried API call for {} successful.'.format(future.market))
-
-            stop = time()
-            time2 = stop - start
-            print('Futures execution time: {}s'.format(str(time2)))
-
-            start = time()
+                    logger.debug('Retried API call for {} successful.'.format(future.market))
 
             working_data, current_datetime, last_price, weighted_price, entries = \
-                process_data(response_dict, working_data, current_datetime, last_price, weighted_price)
+                process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger)
 
             if entries:
                 db.insert_transaction_query(entries)
-                print('Inserted {} entries to database.'.format(str(len(entries))))
+                logger.debug('Inserted {} entries to database.'.format(str(len(entries))))
 
-            print([len(working_data.get(x)) for x in working_data])
+            logger.debug([len(working_data.get(x)) for x in working_data])
 
             stop = time()
-            time3 = stop - start
-            print('Processing and uploading data time: {}s'.format(str(time3)))
+            run_time = stop - start
 
             del futures[:]
 
-            if time1 + time2 + time3 < 30:
-                sleep(30 - (int(time1) + int(time2) + int(time3)))
+            if run_time < 30:
+                sleep(30 - run_time)
 
         # TODO: At midnight of every day - check and delete if any data past 30 days
 
