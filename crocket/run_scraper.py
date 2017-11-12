@@ -55,7 +55,7 @@ DATABASE_NAME = 'BITTREX2'
 
 # Data polling settings
 
-sleep_time = 30  # seconds
+sleep_time = 20  # seconds
 interval = 60  # seconds
 
 # ==============================================================================
@@ -179,21 +179,19 @@ try:
                     logger.debug('Retried API call for {} successful.'.format(future.market))
 
             working_data, current_datetime, last_price, weighted_price, entries = \
-                process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger)
+                process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
 
             if entries:
                 db.insert_transaction_query(entries)
                 logger.debug('Inserted {} entries to database.'.format(str(len(entries))))
-
-            logger.debug([len(working_data.get(x)) for x in working_data])
 
             stop = time()
             run_time = stop - start
 
             del futures[:]
 
-            if run_time < 30:
-                sleep(30 - run_time)
+            if run_time < sleep_time:
+                sleep(sleep_time - run_time)
 
         # TODO: At midnight of every day - check and delete if any data past 30 days
 
