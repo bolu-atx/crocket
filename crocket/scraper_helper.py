@@ -36,7 +36,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     sell_order = 0
     price = 0
     price_volume_weighted = 0
-    formatted_time = format_time(utc_to_local(start_datetime),
+    formatted_time = format_time(start_datetime,
                                  "%Y-%m-%d %H:%M:%S")
 
     if data and isinstance(data[0], dict):
