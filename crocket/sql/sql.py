@@ -68,10 +68,7 @@ class Database:
         with closing(self.connection.cursor()) as cursor:
 
             try:
-
                 cursor.execute(query)
-                self.connection.commit()
-
             except (OperationalError, ProgrammingError) as e:
 
                 if self.logger:
