@@ -121,7 +121,7 @@ class Database:
                 'time DATETIME NOT NULL PRIMARY KEY, ' \
                 'price DECIMAL(9,8) UNSIGNED NOT NULL,' \
                 'wprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
-                'basevolume DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'basevolume DECIMAL(11,8) UNSIGNED NOT NULL,' \
                 'buyorder MEDIUMINT UNSIGNED NOT NULL,' \
                 'sellorder MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 
