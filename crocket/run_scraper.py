@@ -178,6 +178,8 @@ try:
 
                     logger.debug('Retried API call for {} successful.'.format(future.market))
 
+            print(response_dict.keys())
+
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
 
