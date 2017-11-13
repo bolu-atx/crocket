@@ -64,6 +64,7 @@ class Database:
                  for entry in entries]
 
         query = ';'.join(query)
+        print(query)
 
         with closing(self.connection.cursor()) as cursor:
 
