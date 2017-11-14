@@ -67,12 +67,12 @@ class Database:
                  for entry in entries]
 
         query = '{};COMMIT;'.format(';'.join(query))
-        print(query)
+        print('INSERT QUERRY:\n\n{}'.format(query))
 
         with closing(self.connection.cursor()) as cursor:
 
             try:
-                cursor.executemany(query)
+                cursor.execute(query)
             except (OperationalError, ProgrammingError) as e:
 
                 self.connection.rollback()
