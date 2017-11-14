@@ -55,7 +55,7 @@ DATABASE_NAME = 'BITTREX2'
 
 # Data polling settings
 
-sleep_time = 20  # seconds
+sleep_time = 15  # seconds
 interval = 60  # seconds
 
 # ==============================================================================
