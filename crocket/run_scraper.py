@@ -184,7 +184,7 @@ try:
 
             if entries:
                 db.insert_transaction_query(entries)
-                logger.debug('Inserted {} entries to database.'.format(str(len(entries))))
+                #logger.debug('Inserted {} entries to database.'.format(str(len(entries))))
 
             stop = time()
             run_time = stop - start
