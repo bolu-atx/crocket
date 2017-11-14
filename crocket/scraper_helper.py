@@ -69,20 +69,22 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
 
     for market in working_data:
 
-        working_list = working_data.get(market)
         input_list = input_data.get(market)
-        current_datetime = market_datetime.get(market)
+        working_list = working_data.get(market)
 
         last_id = working_list[0].get('Id')
+
+        if input_list[0].get('Id') < last_id:  # TODO: WHy does this happen? current response has smaller ID than previous response
+            continue
+
+        current_datetime = market_datetime.get(market)
+
         id_list = [x.get('Id') for x in input_list]
 
         if last_id in id_list:
             overlap_index = id_list.index(last_id)
             working_list = input_list[:overlap_index] + working_list
         else:
-            print([x.get('Id') for x in working_list], len(working_list))
-            print([x.get('Id') for x in input_list], len(input_list))
-
             working_list = input_list + working_list
             logger.debug('SKIPPED NUMBER OF ORDERS BECAUSE INTERVAL BETWEEN API CALLS TOO SHORT!!!!!!!!')
             logger.debug('Latest ID in {} working list not found in input data. Adding all input data to working list.'.format(market))
