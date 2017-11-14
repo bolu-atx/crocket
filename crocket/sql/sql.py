@@ -51,6 +51,8 @@ class Database:
 
             except (OperationalError, ProgrammingError) as e:
 
+                self.connection.rollback()
+
                 if self.logger:
                     self.logger.debug(e)
 
@@ -60,19 +62,20 @@ class Database:
         :param entries: tuple(market, columns, values)
         :return:
         """
+
         query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(entry[0], ','.join(entry[1]), ','.join(map(lambda x: "'{}'".format(str(x)), entry[2])))
                  for entry in entries]
 
-        query = ';'.join(query)
+        query = '{};COMMIT;'.format(';'.join(query))
         print(query)
 
         with closing(self.connection.cursor()) as cursor:
 
             try:
-                cursor.execute(query)
-                self.connection.commit()
-
+                cursor.executemany(query)
             except (OperationalError, ProgrammingError) as e:
+
+                self.connection.rollback()
 
                 if self.logger:
                     self.logger.debug(e)
