@@ -116,7 +116,7 @@ try:
 
         while True:
 
-            print('Sending requests...')
+            #print('Sending requests...')
             shuffle(randoms)
             start = time()
 
@@ -147,13 +147,13 @@ try:
                 try:
                     response_dict[future.market] = future.result().data.get('result')
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                    logger.debug('Failed API call for {}.'.format(future.market))
+                    #logger.debug('Failed API call for {}.'.format(future.market))
 
                     api_retry = 0
 
                     while True:
 
-                        logger.debug('Retrying...')
+                        #logger.debug('Retrying...')
                         r = randint(0, num_proxies - 1)
                         proxy = configure_ip(PROXIES[r])
 
@@ -168,7 +168,7 @@ try:
 
                         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
                             api_retry += 1
-                            logger.debug('Retried API call failed.')
+                            logger.debug('Retried API call failed for {}.'.format(future.market))
 
                             if api_retry >= MAX_API_RETRY:
                                 logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
@@ -177,7 +177,7 @@ try:
 
                             pass
 
-                    logger.debug('Retried API call for {} successful.'.format(future.market))
+                    #logger.debug('Retried API call for {} successful.'.format(future.market))
 
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)

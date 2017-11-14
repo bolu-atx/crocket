@@ -66,7 +66,7 @@ def filter_bittrex_markets(markets, base_coin):
             if x.get('BaseCurrency') == base_coin and x.get('IsActive')]
 
 
-def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 'buyorder', 'sellorder')):
+def format_bittrex_entry(data, fields=('time', 'price', 'wprice', 'basevolume', 'buyvolume', 'sellvolume', 'buyorder', 'sellorder')):
     """
     Format data object (summary per interval) into SQL row format.
     :param data: Summary of market per interval

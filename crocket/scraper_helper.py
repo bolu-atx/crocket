@@ -32,6 +32,8 @@ def calculate_metrics(data, start_datetime, digits=8):
     decimal_places = Decimal(10) ** (digits * -1)
 
     volume = 0
+    buy_volume = 0
+    sell_volume = 0
     buy_order = 0
     sell_order = 0
     price = 0
@@ -43,6 +45,8 @@ def calculate_metrics(data, start_datetime, digits=8):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
 
         volume = Decimal(sum(v)).quantize(decimal_places)
+        buy_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'BUY'])).quantize(decimal_places)
+        sell_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'SELL'])).quantize(decimal_places)
         buy_order = sum([1 for x in o if x == 'BUY'])
         sell_order = len(o) - buy_order
 
@@ -54,6 +58,8 @@ def calculate_metrics(data, start_datetime, digits=8):
     metrics = {'basevolume': volume,
                'buyorder': buy_order,
                'sellorder': sell_order,
+               'buyvolume': buy_volume,
+               'sellvolume': sell_volume,
                'price': price,
                'wprice': price_volume_weighted,
                'time': formatted_time}
@@ -74,8 +80,8 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
 
         last_id = working_list[0].get('Id')
 
-        if input_list[0].get('Id') < last_id:  # TODO: WHy does this happen? current response has smaller ID than previous response
-            print('Latest ID or latest response < previous response for {}.'.format(market))
+        if input_list[0].get('Id') < last_id:  # TODO: Why does this happen? current response has smaller ID than previous response
+            #logger.debug('Latest ID or latest response < previous response for {}.'.format(market))
             continue
 
         current_datetime = market_datetime.get(market)
