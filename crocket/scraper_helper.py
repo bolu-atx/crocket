@@ -75,6 +75,7 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
         last_id = working_list[0].get('Id')
 
         if input_list[0].get('Id') < last_id:  # TODO: WHy does this happen? current response has smaller ID than previous response
+            print('Latest ID or latest response < previous response for {}.'.format(market))
             continue
 
         current_datetime = market_datetime.get(market)
