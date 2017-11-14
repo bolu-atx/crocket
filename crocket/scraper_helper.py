@@ -80,11 +80,11 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
             overlap_index = id_list.index(last_id)
             working_list = input_list[:overlap_index] + working_list
         else:
+            print([x.get('Id') for x in working_list])
+            print([x.get('Id') for x in input_list])
             working_list = input_list + working_list
             logger.debug('SKIPPED NUMBER OF ORDERS BECAUSE INTERVAL BETWEEN API CALLS TOO SHORT!!!!!!!!')
             logger.debug('Latest ID in {} working list not found in input data. Adding all input data to working list.'.format(market))
-            print([x.get('Id') for x in working_list])
-            print([x.get('Id') for x in input_list])
 
         working_data[market] = working_list
 
