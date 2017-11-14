@@ -67,7 +67,6 @@ class Database:
                  for entry in entries]
 
         query = '{};COMMIT;'.format(';'.join(query))
-        print('INSERT QUERRY:\n\n{}'.format(query))
 
         with closing(self.connection.cursor()) as cursor:
 
