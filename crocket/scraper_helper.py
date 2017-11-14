@@ -45,15 +45,17 @@ def calculate_metrics(data, start_datetime, digits=8):
         p, v, o = map(list, zip(*[(x.get('Price'), x.get('Total'), x.get('OrderType')) for x in data]))
 
         volume = Decimal(sum(v)).quantize(decimal_places)
-        buy_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'BUY'])).quantize(decimal_places)
-        sell_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'SELL'])).quantize(decimal_places)
-        buy_order = sum([1 for x in o if x == 'BUY'])
-        sell_order = len(o) - buy_order
 
-        price = (sum([Decimal(x).quantize(decimal_places) for x in p]) / Decimal(len(p))).quantize(decimal_places)
-        price_volume_weighted = (sum(
-            [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
-            decimal_places)
+        if volume != 0:  # DivisionUndefined error - when volume = 0
+            buy_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'BUY'])).quantize(decimal_places)
+            sell_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'SELL'])).quantize(decimal_places)
+            buy_order = sum([1 for x in o if x == 'BUY'])
+            sell_order = len(o) - buy_order
+
+            price = (sum([Decimal(x).quantize(decimal_places) for x in p]) / Decimal(len(p))).quantize(decimal_places)
+            price_volume_weighted = (sum(
+                [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
+                decimal_places)
 
     metrics = {'basevolume': volume,
                'buyorder': buy_order,
