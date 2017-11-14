@@ -83,6 +83,8 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
             working_list = input_list + working_list
             logger.debug('SKIPPED NUMBER OF ORDERS BECAUSE INTERVAL BETWEEN API CALLS TOO SHORT!!!!!!!!')
             logger.debug('Latest ID in {} working list not found in input data. Adding all input data to working list.'.format(market))
+            print(working_list)
+            print(input_list)
 
         working_data[market] = working_list
 
