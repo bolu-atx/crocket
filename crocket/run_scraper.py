@@ -116,6 +116,7 @@ try:
 
         while True:
 
+            print('Sending requests...')
             shuffle(randoms)
             start = time()
 
