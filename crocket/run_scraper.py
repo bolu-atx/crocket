@@ -179,7 +179,6 @@ try:
                                 logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
                                                                                               future.market))
                                 break
-                    logger.debug('API CALL SUCCESSFUL')
 
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
