@@ -146,14 +146,16 @@ try:
 
                 try:
                     response_dict[future.market] = future.result().data.get('result')
+                    if not response_dict[future.market]:
+                        logger.debug('NO API RESPONSE, RETRYING...')
+                        raise ProxyError('NO API RESPONSE')
+
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
                     #logger.debug('Failed API call for {}.'.format(future.market))
 
                     api_retry = 0
 
                     while True:
-
-                        #logger.debug('Retrying...')
                         r = randint(0, num_proxies - 1)
                         proxy = configure_ip(PROXIES[r])
 
@@ -164,6 +166,11 @@ try:
                                                    timeout=3,
                                                    proxies=proxy)
                             response_dict[future.market] = response.result().data.get('result')
+                            if not response_dict[future.market]:
+                                logger.debug('NO API RESPONSE, RETRYING...')
+                                api_retry += 1
+                                continue
+
                             break
 
                         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
@@ -175,16 +182,11 @@ try:
                                                                                               future.market))
                                 break
 
-                            pass
-
-                    #logger.debug('Retried API call for {} successful.'.format(future.market))
-
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
 
             if entries:
                 db.insert_transaction_query(entries)
-                #logger.debug('Inserted {} entries to database.'.format(str(len(entries))))
 
             stop = time()
             run_time = stop - start

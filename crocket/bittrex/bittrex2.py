@@ -124,6 +124,7 @@ class Bittrex(object):
             return self.dispatch(request_url, apisign)
 
         except:
+            print('DISPATCH FAILED')
             return {
                'success': False,
                'message': 'NO_API_RESPONSE',

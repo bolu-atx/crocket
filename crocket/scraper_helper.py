@@ -56,6 +56,10 @@ def calculate_metrics(data, start_datetime, digits=8):
             price_volume_weighted = (sum(
                 [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
                 decimal_places)
+        else:
+            print('LOOK HERE!!!')
+            print(volume, len(v), v)
+            print(data)
 
     metrics = {'basevolume': volume,
                'buyorder': buy_order,
@@ -82,8 +86,11 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
 
         last_id = working_list[0].get('Id')
 
-        if input_list[0].get('Id') < last_id:  # TODO: Why does this happen? current response has smaller ID than previous response
-            #logger.debug('Latest ID or latest response < previous response for {}.'.format(market))
+        try:
+            if input_list[0].get('Id') < last_id:  # TODO: Why does this happen? current response has smaller ID than previous response
+                #logger.debug('Latest ID or latest response < previous response for {}.'.format(market))
+                continue
+        except TypeError:
             continue
 
         current_datetime = market_datetime.get(market)
