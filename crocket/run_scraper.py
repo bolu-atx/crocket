@@ -115,8 +115,6 @@ try:
     with FuturesSession(max_workers=10) as session:
 
         while True:
-
-            #print('Sending requests...')
             shuffle(randoms)
             start = time()
 
