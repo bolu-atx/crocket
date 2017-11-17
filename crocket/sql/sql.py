@@ -167,13 +167,12 @@ class Database:
 
                 cursor.execute(query)
                 tables = list(chain.from_iterable(cursor))
+                return tables
 
             except (OperationalError, ProgrammingError) as e:
 
                 if self.logger:
                     self.logger.debug(e)
-
-        return tables
 
     def close(self):
         """
