@@ -51,7 +51,7 @@ PROXY_LIST_PATH = '/home/b3arjuden/crocket/proxy_list.txt'
 MARKETS_LIST_PATH = '/home/b3arjuden/crocket/markets.txt'
 
 HOSTNAME = 'localhost'
-DATABASE_NAME = 'BITTREX2'
+DATABASE_NAME = 'BITTREX3'
 
 # Data polling settings
 
@@ -145,11 +145,10 @@ try:
                 try:
                     response_dict[future.market] = future.result().data.get('result')
                     if not response_dict[future.market]:
-                        logger.debug('NO API RESPONSE, RETRYING...')
+                        logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
                         raise ProxyError('NO API RESPONSE')
 
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                    #logger.debug('Failed API call for {}.'.format(future.market))
 
                     api_retry = 0
 
@@ -165,7 +164,7 @@ try:
                                                    proxies=proxy)
                             response_dict[future.market] = response.result().data.get('result')
                             if not response_dict[future.market]:
-                                logger.debug('NO API RESPONSE, RETRYING...')
+                                logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
                                 api_retry += 1
                                 continue
 
