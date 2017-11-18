@@ -130,7 +130,7 @@ try:
                 response = session.get(url,
                                        background_callback=process_response,
                                        headers=headers,
-                                       timeout=5,
+                                       timeout=3,
                                        proxies=proxy)
 
                 # Add attributes to response
@@ -176,7 +176,7 @@ try:
                             response = session.get(future.url,
                                                    background_callback=process_response,
                                                    headers=future.headers,
-                                                   timeout=3,
+                                                   timeout=2,
                                                    proxies=proxy)
                             response_dict[future.market] = response.result().data.get('result')
                             if not response_dict[future.market]:
