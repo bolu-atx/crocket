@@ -74,6 +74,7 @@ def calculate_metrics(data, start_datetime, digits=8):
 
 
 def process_data(input_data, working_data, market_datetime, last_price, weighted_price, logger, interval=60):
+
     entries = []
 
     if not working_data:
@@ -84,9 +85,9 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
         input_list = input_data.get(market)
         working_list = working_data.get(market)
 
-        last_id = working_list[0].get('Id')
-
         try:
+            last_id = working_list[0].get('Id')
+
             if input_list[0].get('Id') < last_id:  # TODO: Why does this happen? current response has smaller ID than previous response
                 continue
         # TypeError occurs when ID of latest response < latest ID of previous response
