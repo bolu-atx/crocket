@@ -156,8 +156,6 @@ try:
                         if response_data.get('message') == "NO_API_RESPONSE":
                             raise ProxyError('NO API RESPONSE')
 
-                        logger.debug('Skipped {}: API call success but no result'.format(future.market))
-
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
 
                     api_retry = 0
@@ -198,7 +196,6 @@ try:
 
             stop = time()
             run_time = stop - start
-            logger.debug(str(run_time))
 
             del futures[:]
 
