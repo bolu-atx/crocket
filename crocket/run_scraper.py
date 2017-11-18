@@ -142,15 +142,15 @@ try:
 
             for future in as_completed(futures):
 
-                response_data = future.result().data
-
-                if not response_data.get('success'):
-                    if response_data.get('message') == "INVALID_MARKET":
-                        MARKETS.remove(future.market)
-                        logger.debug('Removed {}: invalid market ...'.format(future.market))
-                    continue
-
                 try:
+                    response_data = future.result().data
+
+                    if not response_data.get('success'):
+                        if response_data.get('message') == "INVALID_MARKET":
+                            MARKETS.remove(future.market)
+                            logger.debug('Removed {}: invalid market ...'.format(future.market))
+                        continue
+
                     response_dict[future.market] = response_data.get('result')
                     if not response_dict[future.market]:
                         if response_data.get('message') == "NO_API_RESPONSE":
