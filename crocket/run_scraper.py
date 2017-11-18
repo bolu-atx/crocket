@@ -99,7 +99,7 @@ for market in MARKETS:
 num_proxies = len(PROXIES)
 randoms = list(range(num_proxies))
 
-MAX_API_RETRY = 5
+MAX_API_RETRY = 3
 
 response_dict, working_data = {}, {}
 
@@ -142,17 +142,33 @@ try:
 
             for future in as_completed(futures):
 
+                response_data = future.result().data
+
+                if not response_data.get('success'):
+                    if response_data.get('message') == "INVALID_MARKET":
+                        MARKETS.remove(future.market)
+                        logger.debug('Removed {}: invalid market ...'.format(future.market))
+                    continue
+
                 try:
-                    response_dict[future.market] = future.result().data.get('result')
+                    response_dict[future.market] = response_data.get('result')
                     if not response_dict[future.market]:
-                        logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
-                        raise ProxyError('NO API RESPONSE')
+                        if response_data.get('message') == "NO_API_RESPONSE":
+                            raise ProxyError('NO API RESPONSE')
+
+                        logger.debug('Skipped {}: API call success but no result'.format(future.market))
 
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
 
                     api_retry = 0
 
                     while True:
+
+                        if api_retry >= MAX_API_RETRY:
+                            logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
+                                                                                                 future.market))
+                            break
+
                         r = randint(0, num_proxies - 1)
                         proxy = configure_ip(PROXIES[r])
 
@@ -174,11 +190,6 @@ try:
                             api_retry += 1
                             logger.debug('Retried API call failed for {}.'.format(future.market))
 
-                            if api_retry >= MAX_API_RETRY:
-                                logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
-                                                                                              future.market))
-                                break
-
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
 
@@ -187,6 +198,7 @@ try:
 
             stop = time()
             run_time = stop - start
+            logger.debug(str(run_time))
 
             del futures[:]
 
