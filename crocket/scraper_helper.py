@@ -46,6 +46,10 @@ def calculate_metrics(data, start_datetime, digits=8):
 
         volume = Decimal(sum(v)).quantize(decimal_places)
 
+        # Need this: volume can be 0
+        # [{'Id': 20218449, 'TimeStamp': '2017-11-17T04:22:46.39',
+        # 'Quantity': 1.5e-07, 'Price': 0.00021798, 'Total': 0.0,
+        # 'FillType': 'PARTIAL_FILL', 'OrderType': 'BUY'}]
         if volume != 0:
             buy_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'BUY'])).quantize(decimal_places)
             sell_volume = Decimal(sum([x for x, y in zip(v, o) if y == 'SELL'])).quantize(decimal_places)
@@ -56,9 +60,6 @@ def calculate_metrics(data, start_datetime, digits=8):
             price_volume_weighted = (sum(
                 [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
                 decimal_places)
-        else:
-            print('LOOK HERE, VOLUME = 0!!!')
-            print(data)
 
     metrics = {'basevolume': volume,
                'buyorder': buy_order,
@@ -73,6 +74,7 @@ def calculate_metrics(data, start_datetime, digits=8):
 
 
 def process_data(input_data, working_data, market_datetime, last_price, weighted_price, logger, interval=60):
+
     entries = []
 
     if not working_data:
@@ -83,13 +85,14 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
         input_list = input_data.get(market)
         working_list = working_data.get(market)
 
-        last_id = working_list[0].get('Id')
-
         try:
+            last_id = working_list[0].get('Id')
+
             if input_list[0].get('Id') < last_id:  # TODO: Why does this happen? current response has smaller ID than previous response
-                #logger.debug('Latest ID or latest response < previous response for {}.'.format(market))
                 continue
-        except TypeError:
+        # TypeError occurs when ID of latest response < latest ID of previous response
+        # IndexError occurs when API call fails after max number of retries: input_list = []
+        except (TypeError, IndexError):
             continue
 
         current_datetime = market_datetime.get(market)
@@ -101,7 +104,7 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
             working_list = input_list[:overlap_index] + working_list
         else:
             working_list = input_list + working_list
-            logger.debug('SKIPPED NUMBER OF ORDERS BECAUSE INTERVAL BETWEEN API CALLS TOO SHORT!!!!!!!!')
+            logger.debug('SKIPPED NUMBER OF ORDERS, HIGH ORDER VOLUME!!!!!!!!')
             logger.debug('Latest ID in {} working list not found in input data. Adding all input data to working list.'.format(market))
 
         working_data[market] = working_list

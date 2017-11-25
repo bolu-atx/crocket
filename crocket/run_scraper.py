@@ -51,7 +51,7 @@ PROXY_LIST_PATH = '/home/b3arjuden/crocket/proxy_list.txt'
 MARKETS_LIST_PATH = '/home/b3arjuden/crocket/markets.txt'
 
 HOSTNAME = 'localhost'
-DATABASE_NAME = 'BITTREX2'
+DATABASE_NAME = 'BITTREX3'
 
 # Data polling settings
 
@@ -99,7 +99,7 @@ for market in MARKETS:
 num_proxies = len(PROXIES)
 randoms = list(range(num_proxies))
 
-MAX_API_RETRY = 5
+MAX_API_RETRY = 3
 
 response_dict, working_data = {}, {}
 
@@ -130,7 +130,7 @@ try:
                 response = session.get(url,
                                        background_callback=process_response,
                                        headers=headers,
-                                       timeout=5,
+                                       timeout=3,
                                        proxies=proxy)
 
                 # Add attributes to response
@@ -143,17 +143,30 @@ try:
             for future in as_completed(futures):
 
                 try:
-                    response_dict[future.market] = future.result().data.get('result')
+                    response_data = future.result().data
+
+                    if not response_data.get('success'):
+                        if response_data.get('message') == "INVALID_MARKET":
+                            MARKETS.remove(future.market)
+                            logger.debug('Removed {}: invalid market ...'.format(future.market))
+                        continue
+
+                    response_dict[future.market] = response_data.get('result')
                     if not response_dict[future.market]:
-                        logger.debug('NO API RESPONSE, RETRYING...')
-                        raise ProxyError('NO API RESPONSE')
+                        if response_data.get('message') == "NO_API_RESPONSE":
+                            raise ProxyError('NO API RESPONSE')
 
                 except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                    #logger.debug('Failed API call for {}.'.format(future.market))
 
                     api_retry = 0
 
                     while True:
+
+                        if api_retry >= MAX_API_RETRY:
+                            logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
+                                                                                                 future.market))
+                            break
+
                         r = randint(0, num_proxies - 1)
                         proxy = configure_ip(PROXIES[r])
 
@@ -161,11 +174,11 @@ try:
                             response = session.get(future.url,
                                                    background_callback=process_response,
                                                    headers=future.headers,
-                                                   timeout=3,
+                                                   timeout=2,
                                                    proxies=proxy)
                             response_dict[future.market] = response.result().data.get('result')
                             if not response_dict[future.market]:
-                                logger.debug('NO API RESPONSE, RETRYING...')
+                                logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
                                 api_retry += 1
                                 continue
 
@@ -174,11 +187,6 @@ try:
                         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
                             api_retry += 1
                             logger.debug('Retried API call failed for {}.'.format(future.market))
-
-                            if api_retry >= MAX_API_RETRY:
-                                logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
-                                                                                              future.market))
-                                break
 
             working_data, current_datetime, last_price, weighted_price, entries = \
                 process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger, interval)
