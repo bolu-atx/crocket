@@ -79,7 +79,7 @@ class Database:
                 if self.logger:
                     self.logger.debug(e)
 
-    def select_query(self, table, columns):
+    def select_query(self, table, columns, condition=''):
         """
         Execute a select query.
         :param table:
@@ -99,7 +99,7 @@ class Database:
             print('Columns must be list of column names or "*"')
             return
 
-        query = 'SELECT {} from `{}`'.format(formatted_columns, table)
+        query = 'SELECT {} from `{}` {}'.format(formatted_columns, table, condition)
 
         with closing(self.connection.cursor()) as cursor:
 
