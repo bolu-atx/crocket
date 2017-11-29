@@ -84,6 +84,7 @@ class Database:
         Execute a select query.
         :param table:
         :param columns:
+        :param condition:
         :return:
         """
         if isinstance(columns, list):
