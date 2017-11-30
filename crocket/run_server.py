@@ -46,7 +46,7 @@ CREDENTIALS_FILE_PATH = join(HOME_DIRECTORY_PATH, '.credentials_unlocked.json')
 
 BITTREX_CREDENTIALS_PATH = join(HOME_DIRECTORY_PATH, 'bittrex_credentials.json')
 
-CROCKET_DIRECTORY = dirname(realpath(__file__))
+CROCKET_DIRECTORY = dirname(dirname(realpath(__file__)))
 
 PROXY_LIST_PATH = join(CROCKET_DIRECTORY, 'proxy_list.txt')
 
