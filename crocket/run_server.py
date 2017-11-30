@@ -95,6 +95,7 @@ def initialize_databases(database_name, markets, logger=None):
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
                   password=PASSCODE,
+                  database_name='develop',
                   logger=logger)
 
     # Create database if does not exist
