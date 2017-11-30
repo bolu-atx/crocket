@@ -1,9 +1,13 @@
+from concurrent.futures import as_completed
 from copy import deepcopy
 from decimal import Decimal
-from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
 from datetime import timedelta
+from random import randint
+from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
 
 from bittrex.bittrex2 import format_bittrex_entry
+from utilities.network import configure_ip, process_response
+from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
 
 
 def get_interval_index(timestamp_list, target_datetime, interval):
@@ -71,6 +75,84 @@ def calculate_metrics(data, start_datetime, digits=8):
                'time': formatted_time}
 
     return metrics
+
+
+def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=3, logger=None):
+
+    futures = []
+    response_dict = {}
+    num_proxies = len(proxies)
+
+    for index in range(len(markets)):
+        market = markets[index]
+        request_input = bittrex.get_market_history(market)
+
+        proxy = configure_ip(proxies[proxy_indexes[index]])
+        url = request_input.get('url')
+        headers = {"apisign": request_input.get('apisign')}
+
+        response = session.get(url,
+                               background_callback=process_response,
+                               headers=headers,
+                               timeout=3,
+                               proxies=proxy)
+
+        # Add attributes to response
+        response.market = market
+        response.url = request_input.get('url')
+        response.headers = headers
+
+        futures.append(response)
+
+    for future in as_completed(futures):
+
+        try:
+            response_data = future.result().data
+
+            if not response_data.get('success'):
+                if response_data.get('message') == "INVALID_MARKET":
+                    markets.remove(future.market)
+                    logger.debug('Removed {}: invalid market ...'.format(future.market))
+                continue
+
+            response_dict[future.market] = response_data.get('result')
+            if not response_dict[future.market]:
+                if response_data.get('message') == "NO_API_RESPONSE":
+                    raise ProxyError('NO API RESPONSE')
+
+        except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
+
+            api_retry = 0
+
+            while True:
+
+                if api_retry >= max_api_retry:
+                    logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(max_api_retry),
+                                                                                         future.market))
+                    break
+
+                r = randint(0, num_proxies - 1)
+                proxy = configure_ip(proxies[r])
+
+                try:
+                    response = session.get(future.url,
+                                           background_callback=process_response,
+                                           headers=future.headers,
+                                           timeout=2,
+                                           proxies=proxy)
+                    response_dict[future.market] = response.result().data.get('result')
+                    if not response_dict[future.market]:
+                        logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
+                        api_retry += 1
+                        continue
+
+                    break
+
+                except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
+                    api_retry += 1
+                    logger.debug('Retried API call failed for {}.'.format(future.market))
+
+    return response_dict
 
 
 def process_data(input_data, working_data, market_datetime, last_price, weighted_price, logger, interval=60):

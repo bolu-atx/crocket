@@ -27,6 +27,24 @@ class Database:
         except OperationalError:
             self.connection = None
 
+    def execute_query(self, query):
+        """
+        Execute a query
+        :param query:
+        :return:
+        """
+
+        with closing(self.connection.cursor()) as cursor:
+
+            try:
+                cursor.execute(query)
+            except (OperationalError, ProgrammingError) as e:
+
+                self.connection.rollback()
+
+                if self.logger:
+                    self.logger.debug(e)
+
     def insert_query(self, table, tuples):
         """
         Execute an insert query.
@@ -84,6 +102,7 @@ class Database:
         Execute a select query.
         :param table:
         :param columns:
+        :param condition:
         :return:
         """
         if isinstance(columns, list):
@@ -130,13 +149,33 @@ class Database:
                 'buyorder MEDIUMINT UNSIGNED NOT NULL,' \
                 'sellorder MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 
-        with closing(self.connection.cursor()) as cursor:
+        self.execute_query(query)
 
-            try:
-                cursor.execute(query)
-            except OperationalError as e:
-                if self.logger:
-                    self.logger.debug(e)
+    def create_trade_table(self, table_name):
+        """
+        Execute a create table query with sic columns: (DATETIME, PRICE, WPRICE, BASEVOLUME, BUYORDER, SELLORDER).
+        :param table_name: Table name
+        :return:
+        """
+        query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
+                'market CHAR(11) NOT NULL PRIMARY KEY, ' \
+                'buytime DATETIME NOT NULL PRIMARY KEY, ' \
+                'buyprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'selltime DATETIME NOT NULL PRIMARY KEY, ' \
+                'sellprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'profit DECIMAL(9,8) UNSIGNED NOT NULL)'.format(table_name)
+
+        self.execute_query(query)
+
+    def create_database(self, database_name):
+        """
+        Execute a create database query.
+        :param database_name: Database name
+        :return:
+        """
+        query = 'CREATE DATABASE IF NOT EXISTS {}'.format(database_name)
+
+        self.execute_query(query)
 
     def create_analysis_table(self, table_name):
         """
@@ -146,13 +185,7 @@ class Database:
         """
         query = 'CREATE TABLE `{}` (time DATETIME NOT NULL PRIMARY KEY, price DECIMAL(9,8) NOT NULL)'.format(table_name)
 
-        with closing(self.connection.cursor()) as cursor:
-
-            try:
-                cursor.execute(query)
-            except OperationalError as e:
-                if self.logger:
-                    self.logger.debug(e)
+        self.execute_query(query)
 
     def get_all_tables(self):
         """
