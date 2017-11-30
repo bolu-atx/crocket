@@ -73,8 +73,8 @@ with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
     BITTREX_CREDENTIALS = json_load(f)
 
 # Load proxies
-    with open(PROXY_LIST_PATH, 'r') as f:
-        PROXIES = f.read().splitlines()
+with open(PROXY_LIST_PATH, 'r') as f:
+    PROXIES = f.read().splitlines()
 
 
 # ==============================================================================
@@ -131,7 +131,7 @@ def initialize_databases(database_name, markets, logger=None):
 
 
 def run_scraper(control_queue, database_name, markets=MARKETS,
-                max_api_retry=3, interval=60, sleep_time=10):
+                max_api_retry=4, interval=60, sleep_time=10):
 
     # Initialize database object
     initialize_databases(database_name, markets, logger=logger)
@@ -161,8 +161,7 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
 
     try:
 
-        # TODO: optimize max_workers
-        with FuturesSession(max_workers=10) as session:
+        with FuturesSession(max_workers=20) as session:
 
             while True:
                 shuffle(proxy_indexes)
@@ -176,7 +175,7 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
                                  interval)
 
                 if run_tradebot:
-                    print("Scraper: Passing {} entries to tradebot.".format(str(len(entries))))
+                    logger.info("Scraper: Passing {} entries to tradebot.".format(str(len(entries))))
                     SCRAPER_TRADEBOT_QUEUE.put(entries)
 
                 if entries:
@@ -188,18 +187,19 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
 
                     if signal == "START TRADEBOT":
                         run_tradebot = True
-                        print("Scraper: Starting tradebot ...")
+                        logger.info("Scraper: Starting tradebot ...")
 
                     elif signal == "STOP TRADEBOT":
                         run_tradebot = False
-                        print("Scraper: Stopping tradebot ...")
+                        logger.info("Scraper: Stopping tradebot ...")
 
                     elif signal == "STOP":
-                        print("Scraper: Stopping scraper ...")
+                        logger.info("Scraper: Stopping scraper ...")
                         break
 
                 stop = time()
                 run_time = stop - start
+                logger.info('Scraper: Elapsed time: {}'.format(str(run_time)))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -209,7 +209,7 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
 
     db.close()
 
-    print("Scraper: Stopped scraper.")
+    logger.info("Scraper: Stopped scraper.")
 
 
 def run_tradebot(control_queue, data_queue, markets):
@@ -238,7 +238,7 @@ def run_tradebot(control_queue, data_queue, markets):
 
         scraper_data = data_queue.get()
 
-        print("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
+        logger.info("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
 
         for market in scraper_data:
 
@@ -265,17 +265,17 @@ def run_tradebot(control_queue, data_queue, markets):
                     # TODO: insert completed buy into database
 
         stop = time()
-        print('Tradebot: Elapsed time: {}'.format(str(stop-start)))
+        logger.info('Tradebot: Elapsed time: {}'.format(str(stop-start)))
 
         if not control_queue.empty():
 
             signal = control_queue.get()
 
             if signal == "STOP":
-                print("Tradebot: Stopping tradebot ...")
+                logger.info("Tradebot: Stopping tradebot ...")
                 break
 
-    print("Tradebot: Stopped tradebot.")
+    logger.info("Tradebot: Stopped tradebot.")
 
 
 # ==============================================================================
@@ -289,7 +289,7 @@ def _scraper_start(database_name):
     print('Reached START SCRAPER endpoint.')
     print('Starting scraper using database: {}.'.format(database_name))
 
-    scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE,database_name))
+    scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE, database_name))
     scraper.start()
 
     return jsonify("STARTED SCRAPER"), 200
