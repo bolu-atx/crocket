@@ -1,33 +1,40 @@
 from datetime import datetime
+from decimal import Decimal
 from flask import Flask, jsonify
+from json import load as json_load
+from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
+from requests_futures.sessions import FuturesSession
 from logging import FileHandler, Formatter, StreamHandler, getLogger
 from multiprocessing import Process, Queue
 from os import environ
 from os.path import dirname, join, realpath
-from time import sleep
+from random import randint, shuffle
+from time import sleep, time
 
+from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry, return_request_input
+from scraper_helper import get_data, process_data
 from sql.sql import Database
 from utilities.credentials import get_credentials
 
 
-# # ==============================================================================
-# # Initialize logger
-# # ==============================================================================
-# logger = getLogger('scraper')
-#
-# logger.setLevel(10)
-#
-# fh = FileHandler(
-#     '/var/tmp/scraper.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()))
-# fh.setFormatter(Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
-# logger.addHandler(fh)
-#
-# sh = StreamHandler()
-# sh.setFormatter(Formatter('%(levelname)s: %(message)s'))
-# logger.addHandler(sh)
-#
-# logger.info('Initialized logger.')
-#
+# ==============================================================================
+# Initialize logger
+# ==============================================================================
+logger = getLogger('scraper')
+
+logger.setLevel(10)
+
+fh = FileHandler(
+    '/var/tmp/scraper.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()))
+fh.setFormatter(Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
+logger.addHandler(fh)
+
+sh = StreamHandler()
+sh.setFormatter(Formatter('%(levelname)s: %(message)s'))
+logger.addHandler(sh)
+
+logger.info('Initialized logger.')
+
 # ==============================================================================
 # Set up environment variables
 # ==============================================================================
@@ -48,8 +55,26 @@ HOSTNAME = 'localhost'
 
 USERNAME, PASSCODE = get_credentials(CREDENTIALS_FILE_PATH)
 
-
 app = Flask(__name__)
+
+
+# ==============================================================================
+# Load data
+# ==============================================================================
+
+
+# Load markets
+with open(MARKETS_LIST_PATH, 'r') as f:
+    MARKETS = f.read().splitlines()
+
+# Load key/secret for bittrex API
+with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
+    BITTREX_CREDENTIALS = json_load(f)
+
+# Load proxies
+    with open(PROXY_LIST_PATH, 'r') as f:
+        PROXIES = f.read().splitlines()
+
 
 # ==============================================================================
 # Set up queues
@@ -64,13 +89,40 @@ SCRAPER_TRADEBOT_QUEUE = Queue()
 # ==============================================================================
 
 
-def initialize_database(connection, database_name):
+def initialize_databases(database_name, markets, logger=None):
 
-    # TODO: Add create database if does not exist
+    tradebot_database_name = '{}_TRADEBOT'.format(database_name)
+
+    db = Database(hostname=HOSTNAME,
+                  username=USERNAME,
+                  password=PASSCODE,
+                  logger=logger)
+
+    # Create database if does not exist
+    db.create_database(database_name)
+    db.create_database(tradebot_database_name)
+
+    db.close()
+
+    base_db = Database(hostname=HOSTNAME,
+                       username=USERNAME,
+                       password=PASSCODE,
+                       database_name=database_name,
+                       logger=logger)
 
     # Create tables if does not exist
-    for market in MARKETS:
-        connection.create_price_table(market)
+    for market in markets:
+        base_db.create_price_table(market)
+
+    base_db.close()
+
+    tradebot_db = Database(hostname=HOSTNAME,
+                           username=USERNAME,
+                           password=PASSCODE,
+                           database_name=database_name,
+                           logger=logger)
+
+    tradebot_db.create
 
 
 # ==============================================================================
@@ -78,30 +130,35 @@ def initialize_database(connection, database_name):
 # ==============================================================================
 
 
-def run_scraper(control_queue, database_name):
+def run_scraper(control_queue, database_name, markets=MARKETS,
+                max_api_retry=3, interval=60, sleep_time=10):
 
-    # Initialize database connection
+    # Initialize database object
+    db = Database(hostname=HOSTNAME,
+                  username=USERNAME,
+                  password=PASSCODE,
+                  logger=logger)
+
+    initialize_databases(database_name, markets, logger=logger)
+    db.close()
+
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
                   password=PASSCODE,
                   database_name=database_name,
                   logger=logger)
 
-    initialize_database(db, database_name)
-
-    run_tradebot = False
-
-
+    # Initialize Bittrex object
+    bittrex = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
+                      api_secret=BITTREX_CREDENTIALS.get('secret'),
+                      dispatch=return_request_input,
+                      api_version='v1.1')
 
     # Initialize variables
-    num_proxies = len(PROXIES)
-    randoms = list(range(num_proxies))
+    run_tradebot = True
+    proxy_indexes = list(range(len(PROXIES)))
 
-    MAX_API_RETRY = 3
-
-    response_dict, working_data = {}, {}
-
-    futures = []
+    working_data = {}
 
     current_datetime = datetime.now().astimezone(tz=None)
     current_datetime = {k: current_datetime for k in MARKETS}
@@ -110,127 +167,55 @@ def run_scraper(control_queue, database_name):
 
     try:
 
+        # TODO: optimize max_workers
         with FuturesSession(max_workers=10) as session:
 
             while True:
-                shuffle(randoms)
+                shuffle(proxy_indexes)
                 start = time()
 
-                for index in range(len(MARKETS)):
-                    market = MARKETS[index]
-                    request_input = bittrex.get_market_history(market)
-
-                    proxy = configure_ip(PROXIES[randoms[index]])
-                    url = request_input.get('url')
-                    headers = {"apisign": request_input.get('apisign')}
-
-                    response = session.get(url,
-                                           background_callback=process_response,
-                                           headers=headers,
-                                           timeout=3,
-                                           proxies=proxy)
-
-                    # Add attributes to response
-                    response.market = market
-                    response.url = request_input.get('url')
-                    response.headers = headers
-
-                    futures.append(response)
-
-                for future in as_completed(futures):
-
-                    try:
-                        response_data = future.result().data
-
-                        if not response_data.get('success'):
-                            if response_data.get('message') == "INVALID_MARKET":
-                                MARKETS.remove(future.market)
-                                logger.debug('Removed {}: invalid market ...'.format(future.market))
-                            continue
-
-                        response_dict[future.market] = response_data.get('result')
-                        if not response_dict[future.market]:
-                            if response_data.get('message') == "NO_API_RESPONSE":
-                                raise ProxyError('NO API RESPONSE')
-
-                    except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-
-                        api_retry = 0
-
-                        while True:
-
-                            if api_retry >= MAX_API_RETRY:
-                                logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(MAX_API_RETRY),
-                                                                                                     future.market))
-                                break
-
-                            r = randint(0, num_proxies - 1)
-                            proxy = configure_ip(PROXIES[r])
-
-                            try:
-                                response = session.get(future.url,
-                                                       background_callback=process_response,
-                                                       headers=future.headers,
-                                                       timeout=2,
-                                                       proxies=proxy)
-                                response_dict[future.market] = response.result().data.get('result')
-                                if not response_dict[future.market]:
-                                    logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
-                                    api_retry += 1
-                                    continue
-
-                                break
-
-                            except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                                api_retry += 1
-                                logger.debug('Retried API call failed for {}.'.format(future.market))
+                response_dict = get_data(MARKETS, bittrex, session, PROXIES, proxy_indexes,
+                                         max_api_retry=max_api_retry, logger=logger)
 
                 working_data, current_datetime, last_price, weighted_price, entries = \
                     process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger,
                                  interval)
 
+                if run_tradebot:
+                    print("Scraper: Passing {} entries to tradebot.".format(str(len(entries))))
+                    SCRAPER_TRADEBOT_QUEUE.put(entries)
+
                 if entries:
                     db.insert_transaction_query(entries)
+
+                if not control_queue.empty():
+
+                    signal = control_queue.get()
+
+                    if signal == "START TRADEBOT":
+                        run_tradebot = True
+                        print("Scraper: Starting tradebot ...")
+
+                    elif signal == "STOP TRADEBOT":
+                        run_tradebot = False
+                        print("Scraper: Stopping tradebot ...")
+
+                    elif signal == "STOP":
+                        print("Scraper: Stopping scraper ...")
+                        break
 
                 stop = time()
                 run_time = stop - start
 
-                del futures[:]
-
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
 
-                    # TODO: At midnight of every day - check and delete if any data past 30 days
-
-    except (KeyboardInterrupt, ConnectionError) as e:
-        logger.debug('Error: {}. Exiting ...'.format(e))
+    except ConnectionError as e:
+        logger.debug('ConnectionError: {}. Exiting ...'.format(e))
 
     db.close()
 
-    while True:
-        sleep(2)
-        print('INSIDE LOOP')
-
-        if run_tradebot:
-            print("Scraper: Passing {} to tradebot.".format(str(num)))
-            SCRAPER_TRADEBOT_QUEUE.put(num)
-
-        if not control_queue.empty():
-
-            signal = control_queue.get()
-
-            if signal == "START TRADEBOT":
-                run_tradebot = True
-                print("Scraper: Starting tradebot.")
-            elif signal == "STOP TRADEBOT":
-                run_tradebot = False
-            elif signal == "STOP":
-                print("Scraper: Stopping scraper.")
-                break
-
-        num += 1
-
-    print("Scraper: EXITED LOOP.")
+    print("Scraper: Stopped scraper.")
 
 
 def run_tradebot(control_queue, data_queue):
