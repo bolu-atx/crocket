@@ -2,18 +2,19 @@ from datetime import datetime
 from decimal import Decimal
 from flask import Flask, jsonify
 from json import load as json_load
-from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
+from requests.exceptions import ConnectionError
 from requests_futures.sessions import FuturesSession
 from logging import FileHandler, Formatter, StreamHandler, getLogger
 from multiprocessing import Process, Queue
 from os import environ
 from os.path import dirname, join, realpath
-from random import randint, shuffle
+from random import shuffle
 from time import sleep, time
 
 from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry, return_request_input
 from scraper_helper import get_data, process_data
 from sql.sql import Database
+from trade_algorithm import run_algorithm
 from utilities.credentials import get_credentials
 
 
@@ -91,8 +92,6 @@ SCRAPER_TRADEBOT_QUEUE = Queue()
 
 def initialize_databases(database_name, markets, logger=None):
 
-    tradebot_database_name = '{}_TRADEBOT'.format(database_name)
-
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
                   password=PASSCODE,
@@ -100,7 +99,7 @@ def initialize_databases(database_name, markets, logger=None):
 
     # Create database if does not exist
     db.create_database(database_name)
-    db.create_database(tradebot_database_name)
+    db.create_database('TRADEBOT_RECORD')
 
     db.close()
 
@@ -119,11 +118,12 @@ def initialize_databases(database_name, markets, logger=None):
     tradebot_db = Database(hostname=HOSTNAME,
                            username=USERNAME,
                            password=PASSCODE,
-                           database_name=database_name,
+                           database_name='TRADEBOT_RECORD',
                            logger=logger)
 
-    tradebot_db.create
+    tradebot_db.create_trade_table(database_name)
 
+    tradebot_db.close()
 
 # ==============================================================================
 # Run functions
@@ -134,13 +134,7 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
                 max_api_retry=3, interval=60, sleep_time=10):
 
     # Initialize database object
-    db = Database(hostname=HOSTNAME,
-                  username=USERNAME,
-                  password=PASSCODE,
-                  logger=logger)
-
     initialize_databases(database_name, markets, logger=logger)
-    db.close()
 
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
@@ -218,25 +212,70 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
     print("Scraper: Stopped scraper.")
 
 
-def run_tradebot(control_queue, data_queue):
+def run_tradebot(control_queue, data_queue, markets):
 
-    status_dict = {}
+    data = {}
+    results = {}
+    status = {}
+
+    bought_time = datetime(2017, 11, 16, 21, 59, 3)
+
+    last_buy = {'start': bought_time,
+                'buyprice': 0}
+
+    for market in markets:
+        status[market] = {'bought': False,
+                          'last_buy': last_buy,
+                          'current_buy': {},
+                          'stop_gain': False,
+                          'maximize_gain': False}
+
+        data[market] = {'time': [],
+                        'wprice': [],
+                        'buyvolume': []}
 
     while True:
 
         scraper_data = data_queue.get()
 
-        print("TRADEBOT: Received {} from scraper.".format(str(scraper_data)))
+        print("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
+
+        for market in scraper_data:
+
+            if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
+                data[market]['time'].append(scraper_data.get(market).get('time'))
+                data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
+                data[market]['buyvolume'].append(scraper_data.get(market).get('buyvolume'))
+
+        start = time()
+        for market in scraper_data:
+
+            if len(data.get(market).get('time')) > 60:
+
+                del data[market]['time'][0]
+                del data[market]['wprice'][0]
+                del data[market]['buyvolume'][0]
+
+                status[market] = run_algorithm(data.get(market), status.get(market))
+
+                if status.get(market).get('current_buy').get('profit'):
+                    results[market].append(status.get(market).get('current_buy').get('profit'))
+                    print(status.get(market).get('current_buy'))
+                    status[market]['current_buy'] = {}
+                    # TODO: insert completed buy into database
+
+        stop = time()
+        print('Tradebot: Elapsed time: {}'.format(str(stop-start)))
 
         if not control_queue.empty():
 
             signal = control_queue.get()
 
             if signal == "STOP":
-                print("Tradebot: Stopping tradebot.")
+                print("Tradebot: Stopping tradebot ...")
                 break
 
-    print("Tradebot: EXITED LOOP.")
+    print("Tradebot: Stopped tradebot.")
 
 
 # ==============================================================================
@@ -273,7 +312,7 @@ def _tradebot_start():
 
     SCRAPER_QUEUE.put("START TRADEBOT")
 
-    tradebot = Process(target=run_tradebot, args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE))
+    tradebot = Process(target=run_tradebot, args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS))
     tradebot.start()
 
     return jsonify("STARTED TRADEBOT"), 200
