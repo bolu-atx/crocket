@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from flask import Flask, jsonify
+from itertools import chain
 from json import load as json_load
 from requests.exceptions import ConnectionError
 from requests_futures.sessions import FuturesSession
@@ -176,11 +177,19 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
                                  interval)
 
                 if run_tradebot:
-                    logger.info("Scraper: Passing {} entries to tradebot.".format(str(len(entries))))
-                    SCRAPER_TRADEBOT_QUEUE.put(entries)
+                    tradebot_entries = {k: entries.get(k)[-1] for k in entries}
+
+                    SCRAPER_TRADEBOT_QUEUE.put(tradebot_entries)
+
+                    logger.info("Scraper: Passing {} entries to tradebot.".format(str(len(tradebot_entries))))
 
                 if entries:
-                    db.insert_transaction_query(entries)
+                    formatted_entries = list(chain.from_iterable(
+                        [[(x, *format_bittrex_entry(y)) for y in entries[x]] for x in entries]))
+
+                    db.insert_transaction_query(formatted_entries)
+
+                    logger.info("Scraper: Inserted {} entries into database".format(str(len(formatted_entries))))
 
                 if not control_queue.empty():
 
@@ -261,7 +270,7 @@ def run_tradebot(control_queue, data_queue, markets):
 
                 if status.get(market).get('current_buy').get('profit'):
                     results[market].append(status.get(market).get('current_buy').get('profit'))
-                    print(status.get(market).get('current_buy'))
+                    logger.info(status.get(market).get('current_buy'))
                     status[market]['current_buy'] = {}
                     # TODO: insert completed buy into database
 

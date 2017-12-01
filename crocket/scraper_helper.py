@@ -157,7 +157,7 @@ def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=3,
 
 def process_data(input_data, working_data, market_datetime, last_price, weighted_price, logger, interval=60):
 
-    entries = []
+    entries = {}
 
     if not working_data:
         working_data = deepcopy(input_data)
@@ -195,6 +195,8 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
 
         if (latest_datetime - current_datetime).total_seconds() > interval:
 
+            entries[market] = []
+
             timestamp_list = [utc_to_local(convert_bittrex_timestamp_to_datetime(x.get('TimeStamp')))
                               for x in working_list]
 
@@ -207,17 +209,14 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
                     metrics['price'] = last_price.get(market)
                     metrics['wprice'] = weighted_price.get(market)
 
-                    fields, values = format_bittrex_entry(metrics)
-                    entries.append((market, fields, values))
+                    entries[market].append(metrics)
 
                     current_datetime = current_datetime + timedelta(seconds=interval)
 
                 market_datetime[market] = current_datetime
             else:
                 metrics = calculate_metrics(working_list[start:stop], current_datetime)
-
-                fields, values = format_bittrex_entry(metrics)
-                entries.append((market, fields, values))
+                entries[market].append(metrics)
 
                 market_datetime[market] = current_datetime + timedelta(seconds=interval)
                 last_price[market] = metrics.get('price')
