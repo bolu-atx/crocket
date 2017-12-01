@@ -14,7 +14,7 @@ def run_algorithm(data, status,
                   max_hold_time=10800,
                   wait_time=14400):
 
-    time = data.get('time')
+    time = data.get('datetime')
     buyvolume = data.get('buy_volume')
     wprice = data.get('wprice')
 

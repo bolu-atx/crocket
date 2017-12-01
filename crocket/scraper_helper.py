@@ -71,6 +71,7 @@ def calculate_metrics(data, start_datetime, digits=8):
                'sell_volume': sell_volume,
                'price': price,
                'wprice': price_volume_weighted,
+               'datetime': start_datetime,
                'time': formatted_time}
 
     return metrics

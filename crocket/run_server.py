@@ -17,6 +17,7 @@ from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
 from utilities.credentials import get_credentials
+from utilities.time import format_time
 
 
 # ==============================================================================
@@ -249,7 +250,7 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
     data = {}
     status = {}
 
-    bought_time = datetime(2017, 11, 16, 21, 59, 3)
+    bought_time = datetime(2017, 11, 11, 11, 11)
 
     last_buy = {'start': bought_time,
                 'buy_price': 0}
@@ -261,7 +262,7 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                           'stop_gain': False,
                           'maximize_gain': False}
 
-        data[market] = {'time': [],
+        data[market] = {'datetime': [],
                         'wprice': [],
                         'buy_volume': []}
 
@@ -281,21 +282,23 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
 
             scraper_data = data_queue.get()
 
-            logger.info("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
+            logger.info('TRADEBOT: Received {} entries from scraper.'.format(str(len(scraper_data))))
 
             for market in scraper_data:
 
                 if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                    data[market]['time'].append(scraper_data.get(market).get('time'))
+                    data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
                     data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
                     data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+
+                print(market, len(data[market]['datetime']))
 
             start = time()
             for market in scraper_data:
 
-                if len(data.get(market).get('time')) > 60:
+                if len(data.get(market).get('datetime')) > 60:
 
-                    del data[market]['time'][0]
+                    del data[market]['datetime'][0]
                     del data[market]['wprice'][0]
                     del data[market]['buy_volume'][0]
 
@@ -304,8 +307,11 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                     completed_buy = status.get(market).get('current_buy')
 
                     if completed_buy.get('profit'):
+                        completed_buy['start'] = format_time(completed_buy['start'], "%Y-%m-%d %H:%M:%S")
+                        completed_buy['stop'] = format_time(completed_buy['stop'], "%Y-%m-%d %H:%M:%S")
+
                         db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
-                        logger.info("Tradebot: completed buy.", completed_buy)
+                        logger.info('Tradebot: completed buy.', completed_buy)
                         status[market]['current_buy'] = {}
 
             stop = time()
@@ -315,14 +321,14 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
 
                 signal = control_queue.get()
 
-                if signal == "STOP":
-                    logger.info("Tradebot: Stopping tradebot ...")
+                if signal == 'STOP':
+                    logger.info('Tradebot: Stopping tradebot ...')
                     break
     finally:
         db.close()
         # TODO: add functionality to sell all orders when exiting
-        logger.info("Tradebot: Stopped tradebot.")
-        logger.info("Tradebot: Database connection closed.")
+        logger.info('Tradebot: Stopped tradebot.')
+        logger.info('Tradebot: Database connection closed.')
 
 
 # ==============================================================================
