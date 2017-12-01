@@ -292,6 +292,8 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                     data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
                 print(market, len(data[market]['datetime']))
+                if len(data[market]['datetime']) == 0:
+                    print(data[scraper_data.get(market)])
 
             start = time()
             for market in scraper_data:

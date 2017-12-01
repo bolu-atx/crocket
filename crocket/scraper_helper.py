@@ -214,6 +214,9 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
                     current_datetime = current_datetime + timedelta(seconds=interval)
 
                 market_datetime[market] = current_datetime
+
+                if len(entries[market]) == 0:
+                    print("0 ENTIRES!!!")
             else:
                 metrics = calculate_metrics(working_list[start:stop], current_datetime)
                 entries[market].append(metrics)
@@ -221,6 +224,9 @@ def process_data(input_data, working_data, market_datetime, last_price, weighted
                 market_datetime[market] = current_datetime + timedelta(seconds=interval)
                 last_price[market] = metrics.get('price')
                 weighted_price[market] = metrics.get('wprice')
+
+                if len(entries[market]) == 0:
+                    print("0 ENTIRES!!!")
 
             working_data[market] = working_list[:start]
 
