@@ -1,6 +1,7 @@
 from numpy import mean, median
 from decimal import Decimal
 
+
 def run_algorithm(data, status,
                   duration=3,
                   price_lag_time=30,
