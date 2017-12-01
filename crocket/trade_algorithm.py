@@ -39,8 +39,8 @@ def run_algorithm(data, status,
                 mean(wprice[-(duration + price_lag_time):-(duration + price_lag_time - price_lag_duration)])).quantize(digits)
 
             if sample_volume_mean > 2 and \
-                            abs((current_price - previous_price) / previous_price) < price_lag_threshold and \
-                            sum([1 if x > 1 else 0 for x in buyvolume[-duration:]]) >= 3:
+                    abs((current_price - previous_price) / previous_price) < price_lag_threshold and \
+                    sum([1 if x > 1 else 0 for x in buyvolume[-duration:]]) >= 3:
                 # TODO: MAKE API CALL TO BUY (wrap in try)
                 status['bought'] = True
                 status['current_buy'] = {'start': current_time,
