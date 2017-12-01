@@ -229,10 +229,11 @@ def run_scraper(control_queue, database_name, markets, logger,
 
     except ConnectionError as e:
         logger.debug('ConnectionError: {}. Exiting ...'.format(e))
+    finally:
+        db.close()
 
-    db.close()
-
-    logger.info("Scraper: Stopped scraper.")
+        logger.info("Scraper: Stopped scraper.")
+        logger.info("Scraper: Database connection closed.")
 
 
 def run_tradebot(control_queue, data_queue, markets, table_name, logger):
@@ -262,49 +263,53 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                   database_name=TRADEBOT_DATABASE,
                   logger=logger)
 
-    while True:
+    try:
+        while True:
 
-        scraper_data = data_queue.get()
+            scraper_data = data_queue.get()
 
-        logger.info("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
+            logger.info("TRADEBOT: Received {} entries from scraper.".format(str(len(scraper_data))))
 
-        for market in scraper_data:
+            for market in scraper_data:
 
-            if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                data[market]['time'].append(scraper_data.get(market).get('time'))
-                data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+                if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
+                    data[market]['time'].append(scraper_data.get(market).get('time'))
+                    data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
+                    data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
-        start = time()
-        for market in scraper_data:
+            start = time()
+            for market in scraper_data:
 
-            if len(data.get(market).get('time')) > 60:
+                if len(data.get(market).get('time')) > 60:
 
-                del data[market]['time'][0]
-                del data[market]['wprice'][0]
-                del data[market]['buy_volume'][0]
+                    del data[market]['time'][0]
+                    del data[market]['wprice'][0]
+                    del data[market]['buy_volume'][0]
 
-                status[market] = run_algorithm(data.get(market), status.get(market))
+                    status[market] = run_algorithm(data.get(market), status.get(market))
 
-                if status.get(market).get('current_buy').get('profit'):
-                    db.insert_query(table_name, [(),(),(),()])
-                    logger.info("Tradebot: completed buy.", status.get(market).get('current_buy'))
-                    status[market]['current_buy'] = {}
+                    completed_buy = status.get(market).get('current_buy')
 
-                    # TODO: insert completed buy into database
+                    if completed_buy.get('profit'):
+                        db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
+                        logger.info("Tradebot: completed buy.", completed_buy)
+                        status[market]['current_buy'] = {}
 
-        stop = time()
-        logger.info('Tradebot: Elapsed time: {}'.format(str(stop-start)))
+            stop = time()
+            logger.info('Tradebot: Elapsed time: {}'.format(str(stop-start)))
 
-        if not control_queue.empty():
+            if not control_queue.empty():
 
-            signal = control_queue.get()
+                signal = control_queue.get()
 
-            if signal == "STOP":
-                logger.info("Tradebot: Stopping tradebot ...")
-                break
-
-    logger.info("Tradebot: Stopped tradebot.")
+                if signal == "STOP":
+                    logger.info("Tradebot: Stopping tradebot ...")
+                    break
+    finally:
+        db.close()
+        # TODO: add functionality to sell all orders when exiting
+        logger.info("Tradebot: Stopped tradebot.")
+        logger.info("Tradebot: Database connection closed.")
 
 
 # ==============================================================================
