@@ -158,13 +158,13 @@ class Database:
         :return:
         """
         query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
+                'id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, ' \
                 'market CHAR(11) NOT NULL, ' \
                 'buytime DATETIME NOT NULL, ' \
                 'buyprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
-                'selltime DATETIME NOT NULL PRIMARY KEY, ' \
+                'selltime DATETIME NOT NULL, ' \
                 'sellprice DECIMAL(9,8) UNSIGNED NOT NULL, ' \
-                'profit DECIMAL(9,8) UNSIGNED NOT NULL, ' \
-                'PRIMARY KEY (market, buytime))'.format(table_name)
+                'profit DECIMAL(9,8) UNSIGNED NOT NULL)'.format(table_name)
 
         self.execute_query(query)
 
