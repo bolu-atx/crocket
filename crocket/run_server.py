@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from itertools import chain
 from json import load as json_load
 from requests.exceptions import ConnectionError
@@ -140,6 +140,14 @@ def format_tradebot_entry(market, entry):
             ('sell_price', entry.get('sell_price')),
             ('profit', entry.get('profit'))]
 
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+
+
 # ==============================================================================
 # Run functions
 # ==============================================================================
@@ -158,10 +166,10 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                   logger=logger)
 
     # Initialize Bittrex object
-    bittrex = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
-                      api_secret=BITTREX_CREDENTIALS.get('secret'),
-                      dispatch=return_request_input,
-                      api_version='v1.1')
+    bittrex_request = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
+                              api_secret=BITTREX_CREDENTIALS.get('secret'),
+                              dispatch=return_request_input,
+                              api_version='v1.1')
 
     # Initialize variables
     run_tradebot = False
@@ -182,7 +190,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                 shuffle(proxy_indexes)
                 start = time()
 
-                response_dict = get_data(MARKETS, bittrex, session, PROXIES, proxy_indexes,
+                response_dict = get_data(MARKETS, bittrex_request, session, PROXIES, proxy_indexes,
                                          max_api_retry=max_api_retry, logger=logger)
 
                 working_data, current_datetime, last_price, weighted_price, entries = \
@@ -262,6 +270,11 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                   password=PASSCODE,
                   database_name=TRADEBOT_DATABASE,
                   logger=logger)
+
+    # Initialize Bittrex object
+    bittrex = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
+                      api_secret=BITTREX_CREDENTIALS.get('secret'),
+                      api_version='v1.1')
 
     try:
         while True:
@@ -346,6 +359,7 @@ def _tradebot_start(table_name):
 
     SCRAPER_QUEUE.put("START TRADEBOT")
 
+    global tradebot
     tradebot = Process(target=run_tradebot,
                        args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS, table_name, main_logger))
     tradebot.start()
@@ -365,12 +379,14 @@ def _tradebot_stop():
 
 
 # TODO: Implement method to shut down server
-# @app.route('/shutdown', methods=['GET'])
-# def _shutdown():
-#
-#     print('API call: shutdown.')
-#
-#     raise RuntimeError('Received shutdown signal.')
+@app.route('/shutdown', methods=['POST'])
+def _shutdown():
+
+    print('Reached SHUTDOWN endpoint.')
+
+    shutdown_server()
+
+    return jsonify("SHUTTING DOWN SERVER"), 200
 
 
 try:
@@ -378,8 +394,6 @@ try:
     print('Starting server ...')
     # ==========================================================================
     app.run(debug=True, port=9999)
-except RuntimeError:
-    print('Shutting down server ...')
 finally:
 
     # ==========================================================================
