@@ -145,7 +145,7 @@ def format_tradebot_entry(market, entry):
 # ==============================================================================
 
 
-def run_scraper(control_queue, database_name, markets, logger,
+def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                 max_api_retry=4, interval=60, sleep_time=10):
 
     # Initialize database object
