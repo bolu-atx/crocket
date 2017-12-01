@@ -250,7 +250,7 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
     data = {}
     status = {}
 
-    bought_time = datetime(2017, 11, 11, 11, 11)
+    bought_time = datetime(2017, 11, 11, 11, 11).astimezone(tz=None)
 
     last_buy = {'start': bought_time,
                 'buy_price': 0}
