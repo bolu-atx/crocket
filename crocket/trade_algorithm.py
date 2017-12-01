@@ -15,7 +15,7 @@ def run_algorithm(data, status,
                   wait_time=14400):
 
     time = data.get('time')
-    buyvolume = data.get('buyvolume')
+    buyvolume = data.get('buy_volume')
     wprice = data.get('wprice')
 
     last_buy_time_difference = (time[-1] - status.get('last_buy').get('start')).total_seconds()
@@ -63,7 +63,7 @@ def run_algorithm(data, status,
         # Sell after detecting stop gain signal and price drop below stop gain price
         if (wprice[-1] < (current_buy.get('buy_price') * (1 - stop_loss_percent))) or \
                 status.get('maximize_gain') or \
-                        current_buy_hold_time > max_hold_time or \
+                current_buy_hold_time > max_hold_time or \
                 (status.get('stop_gain') and wprice[-1] < (current_buy.get('buy_price') * (stop_gain_percent + 1))):
             # TODO: MAKE API CALL TO SELL (wrap in try)
             status['current_buy']['stop'] = time[-1]

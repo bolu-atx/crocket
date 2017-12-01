@@ -5,7 +5,6 @@ from datetime import timedelta
 from random import randint
 from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
 
-from bittrex.bittrex2 import format_bittrex_entry
 from utilities.network import configure_ip, process_response
 from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
 
@@ -65,11 +64,11 @@ def calculate_metrics(data, start_datetime, digits=8):
                 [Decimal(x).quantize(decimal_places) * Decimal(y) for x, y in zip(p, v)]) / Decimal(sum(v))).quantize(
                 decimal_places)
 
-    metrics = {'basevolume': volume,
-               'buyorder': buy_order,
-               'sellorder': sell_order,
-               'buyvolume': buy_volume,
-               'sellvolume': sell_volume,
+    metrics = {'base_volume': volume,
+               'buy_order': buy_order,
+               'sell_order': sell_order,
+               'buy_volume': buy_volume,
+               'sell_volume': sell_volume,
                'price': price,
                'wprice': price_volume_weighted,
                'time': formatted_time}

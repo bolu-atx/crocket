@@ -22,20 +22,20 @@ from utilities.credentials import get_credentials
 # ==============================================================================
 # Initialize logger
 # ==============================================================================
-logger = getLogger('scraper')
+main_logger = getLogger('scraper')
 
-logger.setLevel(10)
+main_logger.setLevel(10)
 
 fh = FileHandler(
     '/var/tmp/scraper.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()))
 fh.setFormatter(Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
-logger.addHandler(fh)
+main_logger.addHandler(fh)
 
 sh = StreamHandler()
 sh.setFormatter(Formatter('%(levelname)s: %(message)s'))
-logger.addHandler(sh)
+main_logger.addHandler(sh)
 
-logger.info('Initialized logger.')
+main_logger.info('Initialized logger.')
 
 # ==============================================================================
 # Set up environment variables
@@ -53,9 +53,12 @@ PROXY_LIST_PATH = join(CROCKET_DIRECTORY, 'proxy_list.txt')
 
 MARKETS_LIST_PATH = join(CROCKET_DIRECTORY, 'markets.txt')
 
+# SQL parameters
 HOSTNAME = 'localhost'
 
 USERNAME, PASSCODE = get_credentials(CREDENTIALS_FILE_PATH)
+
+TRADEBOT_DATABASE = 'TRADEBOT_RECORD'
 
 app = Flask(__name__)
 
@@ -101,7 +104,7 @@ def initialize_databases(database_name, markets, logger=None):
 
     # Create database if does not exist
     db.create_database(database_name)
-    db.create_database('TRADEBOT_RECORD')
+    db.create_database(TRADEBOT_DATABASE)
 
     db.close()
 
@@ -120,19 +123,29 @@ def initialize_databases(database_name, markets, logger=None):
     tradebot_db = Database(hostname=HOSTNAME,
                            username=USERNAME,
                            password=PASSCODE,
-                           database_name='TRADEBOT_RECORD',
+                           database_name=TRADEBOT_DATABASE,
                            logger=logger)
 
     tradebot_db.create_trade_table(database_name)
 
     tradebot_db.close()
 
+
+def format_tradebot_entry(market, entry):
+
+    return [('market', market),
+            ('buy_time', entry.get('start')),
+            ('buy_price', entry.get('buy_price')),
+            ('sell_time', entry.get('stop')),
+            ('sell_price', entry.get('sell_price')),
+            ('profit', entry.get('profit'))]
+
 # ==============================================================================
 # Run functions
 # ==============================================================================
 
 
-def run_scraper(control_queue, database_name, markets=MARKETS,
+def run_scraper(control_queue, database_name, markets, logger,
                 max_api_retry=4, interval=60, sleep_time=10):
 
     # Initialize database object
@@ -151,7 +164,7 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
                       api_version='v1.1')
 
     # Initialize variables
-    run_tradebot = True
+    run_tradebot = False
     proxy_indexes = list(range(len(PROXIES)))
 
     working_data = {}
@@ -222,16 +235,15 @@ def run_scraper(control_queue, database_name, markets=MARKETS,
     logger.info("Scraper: Stopped scraper.")
 
 
-def run_tradebot(control_queue, data_queue, markets):
+def run_tradebot(control_queue, data_queue, markets, table_name, logger):
 
     data = {}
-    results = {}
     status = {}
 
     bought_time = datetime(2017, 11, 16, 21, 59, 3)
 
     last_buy = {'start': bought_time,
-                'buyprice': 0}
+                'buy_price': 0}
 
     for market in markets:
         status[market] = {'bought': False,
@@ -242,7 +254,13 @@ def run_tradebot(control_queue, data_queue, markets):
 
         data[market] = {'time': [],
                         'wprice': [],
-                        'buyvolume': []}
+                        'buy_volume': []}
+
+    db = Database(hostname=HOSTNAME,
+                  username=USERNAME,
+                  password=PASSCODE,
+                  database_name=TRADEBOT_DATABASE,
+                  logger=logger)
 
     while True:
 
@@ -255,7 +273,7 @@ def run_tradebot(control_queue, data_queue, markets):
             if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
                 data[market]['time'].append(scraper_data.get(market).get('time'))
                 data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                data[market]['buyvolume'].append(scraper_data.get(market).get('buyvolume'))
+                data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
         start = time()
         for market in scraper_data:
@@ -264,14 +282,15 @@ def run_tradebot(control_queue, data_queue, markets):
 
                 del data[market]['time'][0]
                 del data[market]['wprice'][0]
-                del data[market]['buyvolume'][0]
+                del data[market]['buy_volume'][0]
 
                 status[market] = run_algorithm(data.get(market), status.get(market))
 
                 if status.get(market).get('current_buy').get('profit'):
-                    results[market].append(status.get(market).get('current_buy').get('profit'))
-                    logger.info(status.get(market).get('current_buy'))
+                    db.insert_query(table_name, [(),(),(),()])
+                    logger.info("Tradebot: completed buy.", status.get(market).get('current_buy'))
                     status[market]['current_buy'] = {}
+
                     # TODO: insert completed buy into database
 
         stop = time()
@@ -299,7 +318,7 @@ def _scraper_start(database_name):
     print('Reached START SCRAPER endpoint.')
     print('Starting scraper using database: {}.'.format(database_name))
 
-    scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE, database_name))
+    scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE, database_name, main_logger))
     scraper.start()
 
     return jsonify("STARTED SCRAPER"), 200
@@ -315,14 +334,15 @@ def _scraper_stop():
     return jsonify("STOPPED SCRAPER"), 200
 
 
-@app.route('/tradebot/start', methods=['GET'])
-def _tradebot_start():
+@app.route('/tradebot/start/<table_name>', methods=['GET'])
+def _tradebot_start(table_name):
 
     print('Reached START TRADEBOT endpoint.')
 
     SCRAPER_QUEUE.put("START TRADEBOT")
 
-    tradebot = Process(target=run_tradebot, args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS))
+    tradebot = Process(target=run_tradebot,
+                       args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS, table_name, main_logger))
     tradebot.start()
 
     return jsonify("STARTED TRADEBOT"), 200
