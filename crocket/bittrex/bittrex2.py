@@ -327,7 +327,8 @@ class Bittrex(object):
 
                         quantity = response.get('buy_result').get('Quantity')
                         remaining = response.get('buy_result').get('QuantityRemaining')
-
+                        print(response.get('buy_result'))
+                        print(remaining)
                         if remaining > 0:
                             if logger:
                                 logger.info('Tradebot: {0}: {1:.2f}% of buy order remaining, '
