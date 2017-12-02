@@ -300,6 +300,7 @@ class Bittrex(object):
         :param quantity:
         :param rate:
         :param retry:
+        :param logger:
         :return:
         """
 
@@ -311,39 +312,59 @@ class Bittrex(object):
             buy_response = self.buy_limit(market, quantity, rate)
 
             if buy_response.get('success'):
+                if logger:
+                    logger.info('Tradebot: {}: buy order submitted successfully.'.format(market))
                 buy_uuid = buy_response.get('result').get('uuid')
 
                 for jj in range(retry):
                     order_response = self.get_order(buy_uuid)
 
                     if order_response.get('success'):
+                        if logger:
+                            logger.info('Tradebot: {}: received buy order metadata successfully.'.format(market))
                         response['success'] = True
                         response['buy_result'] = order_response.get('result')
 
+                        quantity = response.get('buy_result').get('Quantity')
                         remaining = response.get('buy_result').get('QuantityRemaining')
 
                         if remaining > 0:
                             if logger:
-                                logger.info('Tradebot: {}: {} of buy order remaining, canceling ...'.format(market, str(remaining)))
+                                logger.info('Tradebot: {0}: {1:.2f} of buy order remaining, '
+                                            'canceling remaining order ...'.format(market, remaining/quantity))
 
                             for kk in range(retry):
                                 cancel_response = self.cancel(buy_uuid)
 
                                 if cancel_response.get('success'):
                                     if logger:
-                                        logger.info('Tradedbot: {}: cancel successful ...'.format(market))
+                                        logger.info('Tradebot: {}: cancel successful ...'.format(market))
                                     response['success'] = True
                                     break
                                 else:
                                     if logger:
-                                        logger.info('Tradebot: {}: failed to cancel remaining order ...'.format(market))
-                                    response['success'] = False
+                                        logger.info('Tradebot: {}: FAILED to cancel remaining order ...'.format(market))
+
+                                    if kk == retry - 1:
+                                        raise RuntimeError('Tradebot: failed to cancel remaining order.')
+
+                                sleep(1)
                         break
+
+                    if jj == retry - 1:
+                        if logger:
+                            logger.info('Tradebot: {}: get buy order metadata max API retry limit '
+                                        '({}) reached. EXITING ...'.format(market, str(retry)))
+                        raise RuntimeError('Tradebot: failed to get buy order metadata.')
 
                     sleep(1)
 
                 break
 
+            if ii == retry - 1:
+                if logger:
+                    logger.info('Tradebot: {}: execute buy order max API retry limit '
+                                '({}) reached. EXITING ...'.format(market, str(retry)))
             sleep(1)
 
         return response
