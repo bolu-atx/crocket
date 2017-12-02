@@ -316,6 +316,8 @@ class Bittrex(object):
                     logger.info('Tradebot: {}: buy order submitted successfully.'.format(market))
                 buy_uuid = buy_response.get('result').get('uuid')
 
+                sleep(3)  # Wait for buy order to complete before getting order information
+
                 for jj in range(retry):
                     order_response = self.get_order(buy_uuid)
 
@@ -327,8 +329,7 @@ class Bittrex(object):
 
                         quantity = response.get('buy_result').get('Quantity')
                         remaining = response.get('buy_result').get('QuantityRemaining')
-                        print(response.get('buy_result'))
-                        print(remaining)
+
                         if remaining > 0:
                             if logger:
                                 logger.info('Tradebot: {0}: {1:.2f}% of buy order remaining, '
