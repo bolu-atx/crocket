@@ -1,10 +1,8 @@
-import time
 from hmac import new as hmac_new
 from hashlib import sha512
-
-from urllib.parse import urlencode
-
 from requests import get
+from time import time, sleep
+from urllib.parse import urlencode
 
 BUY_ORDERBOOK = 'buy'
 SELL_ORDERBOOK = 'sell'
@@ -83,18 +81,29 @@ class Bittrex(object):
     Used for requesting Bittrex with API key and API secret
     """
 
-    def __init__(self, api_key, api_secret,
-                 dispatch=using_requests,
-                 api_version=API_V1_1):
+    def __init__(self, api_key, api_secret, calls_per_second=1, dispatch=using_requests, api_version=API_V1_1):
         self.api_key = str(api_key) if api_key is not None else ''
         self.api_secret = str(api_secret) if api_secret is not None else ''
         self.dispatch = dispatch
+        self.call_rate = 1.0 / calls_per_second
+        self.last_call = None
         self.api_version = api_version
+
+    def wait(self):
+        if self.last_call is None:
+            self.last_call = time()
+        else:
+            now = time()
+            passed = now - self.last_call
+            if passed < self.call_rate:
+                # print("sleep")
+                sleep(self.call_rate - passed)
+
+            self.last_call = time()
 
     def _api_query(self, protection=None, path_dict=None, options=None):
         """
         Queries Bittrex
-
         :param request_url: fully-formed URL to request
         :type options: dict
         :return: JSON response from Bittrex
@@ -110,7 +119,7 @@ class Bittrex(object):
         request_url = BASE_URL_V2_0 if self.api_version == API_V2_0 else BASE_URL_V1_1
         request_url = request_url.format(path=path_dict[self.api_version])
 
-        nonce = str(int(time.time() * 1000))
+        nonce = str(int(time() * 1000))
 
         if protection != PROTECTION_PUB:
             request_url = "{0}apikey={1}&nonce={2}&".format(request_url, self.api_key, nonce)
@@ -122,23 +131,23 @@ class Bittrex(object):
                                request_url.encode(),
                                sha512).hexdigest()
 
+            self.wait()
+
             return self.dispatch(request_url, apisign)
 
         except:
             return {
-               'success': False,
-               'message': 'NO_API_RESPONSE',
-               'result': None
+                'success': False,
+                'message': 'NO_API_RESPONSE',
+                'result': None
             }
 
     def get_markets(self):
         """
         Used to get the open and available trading markets
         at Bittrex along with other meta data.
-
         1.1 Endpoint: /public/getmarkets
         2.0 Endpoint: /pub/Markets/GetMarkets
-
         Example ::
             {'success': True,
              'message': '',
@@ -156,7 +165,6 @@ class Bittrex(object):
                           ...
                         ]
             }
-
         :return: Available market info in JSON
         :rtype : dict
         """
@@ -169,11 +177,9 @@ class Bittrex(object):
         """
         Used to get all supported currencies at Bittrex
         along with other meta data.
-
         Endpoint:
         1.1 /public/getcurrencies
         2.0 /pub/Currencies/GetCurrencies
-
         :return: Supported currencies info in JSON
         :rtype : dict
         """
@@ -185,11 +191,9 @@ class Bittrex(object):
     def get_ticker(self, market):
         """
         Used to get the current tick values for a market.
-
         Endpoints:
         1.1 /public/getticker
         2.0 NO EQUIVALENT -- but get_candlesticks gives comparable data
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :return: Current values for given market in JSON
@@ -202,11 +206,9 @@ class Bittrex(object):
     def get_market_summaries(self):
         """
         Used to get the last 24 hour summary of all active exchanges
-
         Endpoint:
         1.1 /public/getmarketsummaries
         2.0 /pub/Markets/GetMarketSummaries
-
         :return: Summaries of active exchanges in JSON
         :rtype : dict
         """
@@ -219,11 +221,9 @@ class Bittrex(object):
         """
         Used to get the last 24 hour summary of all active
         exchanges in specific coin
-
         Endpoint:
         1.1 /public/getmarketsummary
         2.0 /pub/Market/GetMarketSummary
-
         :param market: String literal for the market(ex: BTC-XRP)
         :type market: str
         :return: Summaries of active exchanges of a coin in JSON
@@ -237,13 +237,10 @@ class Bittrex(object):
     def get_orderbook(self, market, depth_type=BOTH_ORDERBOOK):
         """
         Used to get retrieve the orderbook for a given market.
-
         The depth_type parameter is IGNORED under v2.0 and both orderbooks are aleways returned
-
         Endpoint:
         1.1 /public/getorderbook
         2.0 /pub/Market/GetMarketOrderBook
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :param depth_type: buy, sell or both to identify the type of
@@ -262,11 +259,9 @@ class Bittrex(object):
         """
         Used to retrieve the latest trades that have occurred for a
         specific market.
-
         Endpoint:
         1.1 /market/getmarkethistory
         2.0 /pub/Market/GetMarketHistory
-
         Example ::
             {'success': True,
             'message': '',
@@ -280,7 +275,6 @@ class Bittrex(object):
                          ...
                        ]
             }
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :return: Market history in JSON
@@ -291,66 +285,14 @@ class Bittrex(object):
             API_V2_0: '/pub/Market/GetMarketHistory'
         }, options={'market': market, 'marketname': market}, protection=PROTECTION_PUB)
 
-    def get_candles(self, market, tick_interval):
-        """
-        Used to get all tick candle for a market.
-
-        Endpoint:
-        1.1 NO EQUIVALENT
-        2.0 /pub/market/GetTicks
-
-        Example  ::
-            { success: true,
-              message: '',
-              result:
-               [ { O: 421.20630125,
-                   H: 424.03951276,
-                   L: 421.20630125,
-                   C: 421.20630125,
-                   V: 0.05187504,
-                   T: '2016-04-08T00:00:00',
-                   BV: 21.87921187 },
-                 { O: 420.206,
-                   H: 420.206,
-                   L: 416.78743422,
-                   C: 416.78743422,
-                   V: 2.42281573,
-                   T: '2016-04-09T00:00:00',
-                   BV: 1012.63286332 }]
-            }
-
-            O: Open
-            H: High
-            L: Low
-            C: Close
-            T: Timestamp
-            V: Volume
-            BV: Bitcoin Volume
-
-        :return: Available tick candle in JSON
-        :rtype: dict
-        """
-
-        return self._api_query(path_dict={
-            API_V2_0: '/pub/market/GetTicks'
-        }, options={
-            'marketName': market, 'tickInterval': tick_interval
-        }, protection=PROTECTION_PUB)
-
-    # ==============================================================================
-    # Functions requiring API key
-    # ==============================================================================
-
     def buy_limit(self, market, quantity, rate):
         """
         Used to place a buy order in a specific market. Use buylimit to place
         limit orders Make sure you have the proper permissions set on your
         API keys for this call to work
-
         Endpoint:
         1.1 /market/buylimit
         2.0 NO Direct equivalent.  Use trade_buy for LIMIT and MARKET buys
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :param quantity: The amount to purchase
@@ -372,11 +314,9 @@ class Bittrex(object):
         Used to place a sell order in a specific market. Use selllimit to place
         limit orders Make sure you have the proper permissions set on your
         API keys for this call to work
-
         Endpoint:
         1.1 /market/selllimit
         2.0 NO Direct equivalent.  Use trade_sell for LIMIT and MARKET sells
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :param quantity: The amount to purchase
@@ -396,11 +336,9 @@ class Bittrex(object):
     def cancel(self, uuid):
         """
         Used to cancel a buy or sell order
-
         Endpoint:
         1.1 /market/cancel
-        2.0 /key/market/cancel
-
+        2.0 /key/market/tradecancel
         :param uuid: uuid of buy or sell order
         :type uuid: str
         :return:
@@ -408,18 +346,16 @@ class Bittrex(object):
         """
         return self._api_query(path_dict={
             API_V1_1: '/market/cancel',
-            API_V2_0: '/key/market/cancel'
+            API_V2_0: '/key/market/tradecancel'
         }, options={'uuid': uuid, 'orderid': uuid}, protection=PROTECTION_PRV)
 
     def get_open_orders(self, market=None):
         """
         Get all orders that you currently have opened.
         A specific market can be requested.
-
         Endpoint:
         1.1 /market/getopenorders
         2.0 /key/market/getopenorders
-
         :param market: String literal for the market (ie. BTC-LTC)
         :type market: str
         :return: Open orders info in JSON
@@ -433,11 +369,9 @@ class Bittrex(object):
     def get_balances(self):
         """
         Used to retrieve all balances from your account.
-
         Endpoint:
         1.1 /account/getbalances
         2.0 /key/balance/getbalances
-
         Example ::
             {'success': True,
              'message': '',
@@ -449,8 +383,6 @@ class Bittrex(object):
                           ...
                         ]
             }
-
-
         :return: Balances info in JSON
         :rtype : dict
         """
@@ -462,11 +394,9 @@ class Bittrex(object):
     def get_balance(self, currency):
         """
         Used to retrieve the balance from your account for a specific currency
-
         Endpoint:
         1.1 /account/getbalance
         2.0 /key/balance/getbalance
-
         Example ::
             {'success': True,
              'message': '',
@@ -476,8 +406,6 @@ class Bittrex(object):
                         'Pending': 0.0,
                         'CryptoAddress': None}
             }
-
-
         :param currency: String literal for the currency (ex: LTC)
         :type currency: str
         :return: Balance info in JSON
@@ -491,11 +419,9 @@ class Bittrex(object):
     def get_deposit_address(self, currency):
         """
         Used to generate or retrieve an address for a specific currency
-
         Endpoint:
         1.1 /account/getdepositaddress
         2.0 /key/balance/getdepositaddress
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: Address info in JSON
@@ -509,11 +435,9 @@ class Bittrex(object):
     def withdraw(self, currency, quantity, address):
         """
         Used to withdraw funds from your account
-
         Endpoint:
         1.1 /account/withdraw
         2.0 /key/balance/withdrawcurrency
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :param quantity: The quantity of coins to withdraw
@@ -531,11 +455,9 @@ class Bittrex(object):
     def get_order_history(self, market=None):
         """
         Used to retrieve order trade history of account
-
         Endpoint:
         1.1 /account/getorderhistory
         2.0 /key/orders/getorderhistory
-
         :param market: optional a string literal for the market (ie. BTC-LTC).
             If omitted, will return for all markets
         :type market: str
@@ -550,11 +472,9 @@ class Bittrex(object):
     def get_order(self, uuid):
         """
         Used to get details of buy or sell order
-
         Endpoint:
         1.1 /account/getorder
         2.0 /key/orders/getorder
-
         :param uuid: uuid of buy or sell order
         :type uuid: str
         :return:
@@ -568,11 +488,9 @@ class Bittrex(object):
     def get_withdrawal_history(self, currency=None):
         """
         Used to view your history of withdrawals
-
         Endpoint:
         1.1 /account/getwithdrawalhistory
         2.0 /key/balance/getwithdrawalhistory
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: withdrawal history in JSON
@@ -588,11 +506,9 @@ class Bittrex(object):
     def get_deposit_history(self, currency=None):
         """
         Used to view your history of deposits
-
         Endpoint:
         1.1 /account/getdeposithistory
         2.0 /key/balance/getdeposithistory
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: deposit history in JSON
@@ -607,13 +523,10 @@ class Bittrex(object):
     def list_markets_by_currency(self, currency):
         """
         Helper function to see which markets exist for a currency.
-
         Endpoint: /public/getmarkets
-
         Example ::
-            Bittrex(None, None).list_markets_by_currency('LTC')
+            >>> Bittrex(None, None).list_markets_by_currency('LTC')
             ['BTC-LTC', 'ETH-LTC', 'USDT-LTC']
-
         :param currency: String literal for the currency (ex: LTC)
         :type currency: str
         :return: List of markets that the currency appears in
@@ -625,11 +538,9 @@ class Bittrex(object):
     def get_wallet_health(self):
         """
         Used to view wallet health
-
         Endpoints:
         1.1 NO Equivalent
         2.0 /pub/Currencies/GetWalletHealth
-
         :return:
         """
         return self._api_query(path_dict={
@@ -639,25 +550,21 @@ class Bittrex(object):
     def get_balance_distribution(self):
         """
         Used to view balance distibution
-
         Endpoints:
         1.1 NO Equivalent
         2.0 /pub/Currency/GetBalanceDistribution
-
         :return:
         """
         return self._api_query(path_dict={
             API_V2_0: '/pub/Currency/GetBalanceDistribution'
         }, protection=PROTECTION_PUB)
 
-    def get_pending_withdrawls(self, currency=None):
+    def get_pending_withdrawals(self, currency=None):
         """
         Used to view your pending withdrawls
-
         Endpoint:
         1.1 NO EQUIVALENT
         2.0 /key/balance/getpendingwithdrawals
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: pending widthdrawls in JSON
@@ -671,11 +578,9 @@ class Bittrex(object):
     def get_pending_deposits(self, currency=None):
         """
         Used to view your pending deposits
-
         Endpoint:
         1.1 NO EQUIVALENT
         2.0 /key/balance/getpendingdeposits
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: pending deposits in JSON
@@ -689,11 +594,9 @@ class Bittrex(object):
     def generate_deposit_address(self, currency):
         """
         Generate a deposit address for the specified currency
-
         Endpoint:
         1.1 NO EQUIVALENT
         2.0 /key/balance/generatedepositaddress
-
         :param currency: String literal for the currency (ie. BTC)
         :type currency: str
         :return: result of creation operation
@@ -710,7 +613,6 @@ class Bittrex(object):
         Endpoint
         1.1 NO EQUIVALENT -- see sell_market or sell_limit
         2.0 /key/market/tradesell
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :param order_type: ORDERTYPE_LIMIT = 'LIMIT' or ORDERTYPE_MARKET = 'MARKET'
@@ -750,7 +652,6 @@ class Bittrex(object):
         Endpoint
         1.1 NO EQUIVALENT -- see buy_market or buy_limit
         2.0 /key/market/tradebuy
-
         :param market: String literal for the market (ex: BTC-LTC)
         :type market: str
         :param order_type: ORDERTYPE_LIMIT = 'LIMIT' or ORDERTYPE_MARKET = 'MARKET'
@@ -782,3 +683,66 @@ class Bittrex(object):
             'conditiontype': condition_type,
             'target': target
         }, protection=PROTECTION_PRV)
+
+    def get_candles(self, market, tick_interval):
+        """
+        Used to get all tick candle for a market.
+        Endpoint:
+        1.1 NO EQUIVALENT
+        2.0 /pub/market/GetTicks
+        Example  ::
+            { success: true,
+              message: '',
+              result:
+               [ { O: 421.20630125,
+                   H: 424.03951276,
+                   L: 421.20630125,
+                   C: 421.20630125,
+                   V: 0.05187504,
+                   T: '2016-04-08T00:00:00',
+                   BV: 21.87921187 },
+                 { O: 420.206,
+                   H: 420.206,
+                   L: 416.78743422,
+                   C: 416.78743422,
+                   V: 2.42281573,
+                   T: '2016-04-09T00:00:00',
+                   BV: 1012.63286332 }]
+            }
+        :return: Available tick candle in JSON
+        :rtype: dict
+        """
+
+        return self._api_query(path_dict={
+            API_V2_0: '/pub/market/GetTicks'
+        }, options={
+            'marketName': market, 'tickInterval': tick_interval
+        }, protection=PROTECTION_PUB)
+
+    def get_latest_candle(self, market, tick_interval):
+        """
+        Used to get the latest candle for the market.
+        Endpoint:
+        1.1 NO EQUIVALENT
+        2.0 /pub/market/GetLatestTick
+        Example ::
+            { success: true,
+              message: '',
+              result:
+              [ {   O : 0.00350397,
+                    H : 0.00351000,
+                    L : 0.00350000,
+                    C : 0.00350350,
+                    V : 1326.42643480,
+                    T : 2017-11-03T03:18:00,
+                    BV: 4.64416189 } ]
+            }
+        :return: Available latest tick candle in JSON
+        :rtype: dict
+        """
+
+        return self._api_query(path_dict={
+            API_V2_0: '/pub/market/GetLatestTick'
+        }, options={
+            'marketName': market, 'tickInterval': tick_interval
+        }, protection=PROTECTION_PUB)
