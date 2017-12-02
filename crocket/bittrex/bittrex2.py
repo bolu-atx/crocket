@@ -81,25 +81,11 @@ class Bittrex(object):
     Used for requesting Bittrex with API key and API secret
     """
 
-    def __init__(self, api_key, api_secret, calls_per_second=1, dispatch=using_requests, api_version=API_V1_1):
+    def __init__(self, api_key, api_secret, dispatch=using_requests, api_version=API_V1_1):
         self.api_key = str(api_key) if api_key is not None else ''
         self.api_secret = str(api_secret) if api_secret is not None else ''
         self.dispatch = dispatch
-        self.call_rate = 1.0 / calls_per_second
-        self.last_call = None
         self.api_version = api_version
-
-    def wait(self):
-        if self.last_call is None:
-            self.last_call = time()
-        else:
-            now = time()
-            passed = now - self.last_call
-            if passed < self.call_rate:
-                # print("sleep")
-                sleep(self.call_rate - passed)
-
-            self.last_call = time()
 
     def _api_query(self, protection=None, path_dict=None, options=None):
         """
@@ -130,8 +116,6 @@ class Bittrex(object):
             apisign = hmac_new(self.api_secret.encode(),
                                request_url.encode(),
                                sha512).hexdigest()
-
-            self.wait()
 
             return self.dispatch(request_url, apisign)
 
@@ -309,6 +293,61 @@ class Bittrex(object):
                     'quantity': quantity,
                     'rate': rate}, protection=PROTECTION_PRV)
 
+    def buy_or_else(self, market, quantity, rate, retry=3, logger=None):
+        """
+        Wrapper function foy buy_limit
+        :param market:
+        :param quantity:
+        :param rate:
+        :param retry:
+        :return:
+        """
+
+        response = {'success': False,
+                    'result': {}}
+
+        for ii in range(retry):
+
+            buy_response = self.buy_limit(market, quantity, rate)
+
+            if buy_response.get('success'):
+                buy_uuid = buy_response.get('result').get('uuid')
+
+                for jj in range(retry):
+                    order_response = self.get_order(buy_uuid)
+
+                    if order_response.get('success'):
+                        response['success'] = True
+                        response['buy_result'] = order_response.get('result')
+
+                        remaining = response.get('buy_result').get('QuantityRemaining')
+
+                        if remaining > 0:
+                            if logger:
+                                logger.info('Tradebot: {}: {} of buy order remaining, canceling ...'.format(market, str(remaining)))
+
+                            for kk in range(retry):
+                                cancel_response = self.cancel(buy_uuid)
+
+                                if cancel_response.get('success'):
+                                    if logger:
+                                        logger.info('Tradedbot: {}: cancel successful ...'.format(market))
+                                    response['success'] = True
+                                    break
+                                else:
+                                    if logger:
+                                        logger.info('Tradebot: {}: failed to cancel remaining order ...'.format(market))
+                                    response['success'] = False
+                        break
+
+                    sleep(1)
+
+                break
+
+            sleep(1)
+
+        return response
+
     def sell_limit(self, market, quantity, rate):
         """
         Used to place a sell order in a specific market. Use selllimit to place
@@ -332,6 +371,42 @@ class Bittrex(object):
         }, options={'market': market,
                     'quantity': quantity,
                     'rate': rate}, protection=PROTECTION_PRV)
+
+    def sell_or_else(self, market, quantity, rate, retry=3, logger=None):
+        """
+        Wrapper function foy buy_limit
+        :param market:
+        :param quantity:
+        :param rate:
+        :param retry:
+        :return:
+        """
+
+        response = {'success': False,
+                    'result': {}}
+
+        for ii in range(retry):
+
+            sell_response = self.sell_limit(market, quantity, rate)
+
+            if sell_response.get('success'):
+                sell_uuid = sell_response.get('result').get('uuid')
+
+                for jj in range(retry):
+                    order_response = self.get_order(sell_uuid)
+
+                    if order_response.get('success'):
+                        response['success'] = True
+                        response['sell_result'] = order_response.get('result')
+                        break
+
+                    sleep(1)
+
+                break
+
+            sleep(1)
+
+        return response
 
     def cancel(self, uuid):
         """
@@ -525,7 +600,7 @@ class Bittrex(object):
         Helper function to see which markets exist for a currency.
         Endpoint: /public/getmarkets
         Example ::
-            >>> Bittrex(None, None).list_markets_by_currency('LTC')
+            Bittrex(None, None).list_markets_by_currency('LTC')
             ['BTC-LTC', 'ETH-LTC', 'USDT-LTC']
         :param currency: String literal for the currency (ex: LTC)
         :type currency: str
