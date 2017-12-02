@@ -330,8 +330,8 @@ class Bittrex(object):
 
                         if remaining > 0:
                             if logger:
-                                logger.info('Tradebot: {0}: {1:.2f} of buy order remaining, '
-                                            'canceling remaining order ...'.format(market, remaining/quantity))
+                                logger.info('Tradebot: {0}: {1:.2f}% of buy order remaining, '
+                                            'canceling remaining order ...'.format(market, 100*remaining/quantity))
 
                             for kk in range(retry):
                                 cancel_response = self.cancel(buy_uuid)
