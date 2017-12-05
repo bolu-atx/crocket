@@ -340,7 +340,7 @@ class Bittrex(object):
 
                                 if cancel_response.get('success'):
                                     if logger:
-                                        logger.info('Tradebot: {}: cancel successful ...'.format(market))
+                                        logger.info('Tradebot: {}: cancel successful.'.format(market))
                                     response['success'] = True
                                     break
                                 else:
@@ -366,7 +366,7 @@ class Bittrex(object):
             if ii == retry - 1:
                 if logger:
                     logger.info('Tradebot: {}: execute buy order max API retry limit '
-                                '({}) reached. EXITING ...'.format(market, str(retry)))
+                                '({}) reached. SKIPPING ...'.format(market, str(retry)))
             sleep(1)
 
         return response
@@ -413,19 +413,33 @@ class Bittrex(object):
             sell_response = self.sell_limit(market, quantity, rate)
 
             if sell_response.get('success'):
+                if logger:
+                    logger.info('Tradebot: {}: sell order submitted successfully.'.format(market))
                 sell_uuid = sell_response.get('result').get('uuid')
 
                 for jj in range(retry):
                     order_response = self.get_order(sell_uuid)
 
                     if order_response.get('success'):
+                        if logger:
+                            logger.info('Tradebot: {}: received sell order metadata successfully.'.format(market))
                         response['success'] = True
                         response['sell_result'] = order_response.get('result')
                         break
 
+                    if jj == retry - 1:
+                        if logger:
+                            logger.info('Tradebot: {}: get sell order metadata max API retry limit '
+                                        '({}) reached. CONTINUING ...'.format(market, str(retry)))
+
                     sleep(1)
 
                 break
+
+            if ii == retry - 1:
+                if logger:
+                    logger.info('Tradebot: {}: execute sell order max API retry limit '
+                                '({}) reached. CHECK IF SELL SUCCESSFUL. CONTINUING ...'.format(market, str(retry)))
 
             sleep(1)
 
