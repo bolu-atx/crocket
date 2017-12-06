@@ -247,15 +247,11 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                     SCRAPER_TRADEBOT_QUEUE.put(tradebot_entries)
 
-                    logger.info("Scraper: Passing {} entries to tradebot.".format(str(len(tradebot_entries))))
-
                 if entries:
                     formatted_entries = list(chain.from_iterable(
                         [[(x, *format_bittrex_entry(y)) for y in entries[x]] for x in entries]))
 
                     db.insert_transaction_query(formatted_entries)
-
-                    logger.info("Scraper: Inserted {} entries into database".format(str(len(formatted_entries))))
 
                 if not control_queue.empty():
 
@@ -328,8 +324,6 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
         while True:
 
             scraper_data = data_queue.get()
-
-            logger.info('TRADEBOT: Received {} entries from scraper.'.format(str(len(scraper_data))))
 
             for market in scraper_data:
 
