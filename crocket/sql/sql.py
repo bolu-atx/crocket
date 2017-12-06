@@ -166,7 +166,8 @@ class Database:
                 'sell_time DATETIME NOT NULL, ' \
                 'sell_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
-                'profit DECIMAL(9,8) SIGNED NOT NULL)'.format(table_name)
+                'profit DECIMAL(9,8) SIGNED NOT NULL, ' \
+                'percent DECIMAL(7,4) SIGNED NOT NULL)'.format(table_name)
 
         self.execute_query(query)
 

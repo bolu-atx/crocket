@@ -154,7 +154,8 @@ def format_tradebot_entry(market, entry):
             ('sell_time', entry.get('stop')),
             ('sell_price', entry.get('sell_price')),
             ('sell_total', entry.get('sell_total')),
-            ('profit', entry.get('profit'))]
+            ('profit', entry.get('profit')),
+            ('percent', entry.get('percent'))]
 
 
 def close_positions(bittrex, wallet, logger=None):
