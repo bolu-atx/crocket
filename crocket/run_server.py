@@ -157,22 +157,32 @@ def format_tradebot_entry(market, entry):
             ('profit', entry.get('profit'))]
 
 
-def close_positions(bittrex, positions, logger=None):
+def close_positions(bittrex, wallet, logger=None):
 
-    for market in positions:
+    for market in wallet:
 
-        try:
-            sell_total = positions.get(market)
-            sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
-            sell_response = bittrex.sell_or_else(market, positions.get(market), sell_rate, logger)
+        if market != 'BTC':
+            try:
+                sell_total = wallet.get(market)
+                sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
+                sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger)
 
-            if sell_response.get('success'):
-                logger.info('Tradebot: Successfully closed {}'.format(market))
+                if sell_response.get('success'):
 
-        except (ConnectionError, RuntimeError) as e:
-            if logger:
-                logger.error('Tradebot: Failed to close {}: {}.'.format(market, e))
-                logger.info('ACTION: Manually close {}.'.format(market))
+                    sell_result = sell_response.get('result')
+
+                    sell_total = (Decimal(sell_result.get('Price')) -
+                                  Decimal(sell_result.get('CommissionPaid'))).quantize(DIGITS)
+
+                    wallet['BTC'] = (wallet.get('BTC') + sell_total).quantize(DIGITS)
+                    logger.info('Tradebot: Successfully closed {}'.format(market))
+
+            except (ConnectionError, RuntimeError) as e:
+                if logger:
+                    logger.error('Tradebot: Failed to close {}: {}.'.format(market, e))
+                    logger.info('ACTION: Manually close {}.'.format(market))
+
+    logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
 
 
 def shutdown_server():
@@ -375,13 +385,12 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
         db.close()
         # TODO: check if any open orders
 
-        open_positions = {k: wallet.get(k) for k in wallet if wallet.get(k) > 0 and k != 'BTC'}
-        if any(open_positions):
-            logger.info('Tradebot: Open positions remaining:')
-            logger.info(open_positions)
+        if any(k for k in wallet if wallet.get(k) > 0 and k != 'BTC'):
+            logger.info('Tradebot: Open positions remaining.')
             logger.info('Tradebot: Closing open positions.')
-            close_positions(bittrex, open_positions, logger)
+            close_positions(bittrex, wallet, logger)
         else:
+            logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
             logger.info('Tradebot: No positions open. Safe to exit.')
 
         logger.info('Tradebot: Stopped tradebot.')

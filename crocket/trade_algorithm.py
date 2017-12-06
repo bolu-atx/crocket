@@ -129,13 +129,14 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
 
                     status['current_buy']['sell_price'] = Decimal(sell_result.get('PricePerUnit')).quantize(digits)
 
-                    sell_total = Decimal(sell_result.get('Price')).quantize(digits) - \
-                                                          Decimal(sell_result.get('CommissionPaid').quantize(digits))
-                    status['current_buy']['sell_total'] = sell_total
-                    status['current_buy']['profit'] = sell_total - current_buy.get('buy_total')
+                    sell_total = (Decimal(sell_result.get('Price')) -
+                                  Decimal(sell_result.get('CommissionPaid'))).quantize(digits)
 
-                    wallet['BTC'] += status.get('current_buy').get('sell_total')
-                    wallet[market] -= status.get('current_buy').get('quantity')
+                    status['current_buy']['sell_total'] = sell_total
+                    status['current_buy']['profit'] = (sell_total - current_buy.get('buy_total')).quantize(digits)
+
+                    wallet['BTC'] = (wallet.get('BTC') + sell_total).quantize(digits)
+                    wallet[market] = (wallet.get(market) - current_buy.get('quantity')).quantize(digits)
 
                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)), market.split('-')[-1]))
