@@ -141,11 +141,11 @@ class Database:
         """
         query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
                 'time DATETIME NOT NULL PRIMARY KEY, ' \
-                'price DECIMAL(9,8) UNSIGNED NOT NULL,' \
-                'wprice DECIMAL(9,8) UNSIGNED NOT NULL,' \
-                'base_volume DECIMAL(12,8) UNSIGNED NOT NULL,' \
-                'buy_volume DECIMAL(12,8) UNSIGNED NOT NULL,' \
-                'sell_volume DECIMAL(12,8) UNSIGNED NOT NULL,' \
+                'price DECIMAL(14,8) UNSIGNED NOT NULL,' \
+                'wprice DECIMAL(14,8) UNSIGNED NOT NULL,' \
+                'base_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
+                'buy_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
+                'sell_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
                 'buy_order MEDIUMINT UNSIGNED NOT NULL,' \
                 'sell_order MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 
@@ -161,9 +161,11 @@ class Database:
                 'id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, ' \
                 'market CHAR(11) NOT NULL, ' \
                 'buy_time DATETIME NOT NULL, ' \
-                'buy_price DECIMAL(9,8) UNSIGNED NOT NULL,' \
+                'buy_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
+                'buy_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_time DATETIME NOT NULL, ' \
                 'sell_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
+                'sell_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'profit DECIMAL(9,8) SIGNED NOT NULL)'.format(table_name)
 
         self.execute_query(query)

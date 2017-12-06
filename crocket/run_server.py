@@ -54,6 +54,8 @@ PROXY_LIST_PATH = join(CROCKET_DIRECTORY, 'proxy_list.txt')
 
 MARKETS_LIST_PATH = join(CROCKET_DIRECTORY, 'markets.txt')
 
+DIGITS = Decimal(10) ** -8
+
 # SQL parameters
 HOSTNAME = 'localhost'
 
@@ -81,6 +83,17 @@ with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
 with open(PROXY_LIST_PATH, 'r') as f:
     PROXIES = f.read().splitlines()
 
+
+# ==============================================================================
+# Tradebot settings
+# ==============================================================================
+
+WALLET_TOTAL = 0
+AMOUNT_PER_CALL = 0
+
+SKIP_LIST = []  # TODO: implement if necessary
+
+MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
 
 # ==============================================================================
 # Set up queues
@@ -137,9 +150,29 @@ def format_tradebot_entry(market, entry):
     return [('market', market),
             ('buy_time', entry.get('start')),
             ('buy_price', entry.get('buy_price')),
+            ('buy_total', entry.get('buy_total')),
             ('sell_time', entry.get('stop')),
             ('sell_price', entry.get('sell_price')),
+            ('sell_total', entry.get('sell_total')),
             ('profit', entry.get('profit'))]
+
+
+def close_positions(bittrex, positions, logger=None):
+
+    for market in positions:
+
+        try:
+            sell_total = positions.get(market)
+            sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
+            sell_response = bittrex.sell_or_else(market, positions.get(market), sell_rate, logger)
+
+            if sell_response.get('success'):
+                logger.info('Tradebot: Successfully closed {}'.format(market))
+
+        except (ConnectionError, RuntimeError) as e:
+            if logger:
+                logger.error('Tradebot: Failed to close {}: {}.'.format(market, e))
+                logger.info('ACTION: Manually close {}.'.format(market))
 
 
 def shutdown_server():
@@ -180,8 +213,8 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
     current_datetime = datetime.now().astimezone(tz=None)
     current_datetime = {k: current_datetime for k in MARKETS}
-    last_price = {k: Decimal(0) for k in MARKETS}
-    weighted_price = {k: Decimal(0) for k in MARKETS}
+    last_price = {k: Decimal(0).quantize(DIGITS) for k in MARKETS}
+    weighted_price = {k: Decimal(0).quantize(DIGITS) for k in MARKETS}
 
     try:
 
@@ -245,10 +278,11 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
         logger.info("Scraper: Database connection closed.")
 
 
-def run_tradebot(control_queue, data_queue, markets, table_name, logger):
+def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_call, table_name, logger):
 
     data = {}
     status = {}
+    wallet = {'BTC': wallet_total}
 
     bought_time = datetime(2017, 11, 11, 11, 11).astimezone(tz=None)
 
@@ -265,6 +299,8 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
         data[market] = {'datetime': [],
                         'wprice': [],
                         'buy_volume': []}
+
+        wallet[market] = Decimal(0).quantize(DIGITS)
 
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
@@ -291,20 +327,25 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                     data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
                     data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
-                print(market, len(data[market]['datetime']))
                 if len(data[market]['datetime']) == 0:
-                    print(scraper_data.get(market))
+                    print("ERROR", scraper_data.get(market))
 
             start = time()
             for market in scraper_data:
 
-                if len(data.get(market).get('datetime')) > 60:
+                if len(data.get(market).get('datetime')) > 90:
 
                     del data[market]['datetime'][0]
                     del data[market]['wprice'][0]
                     del data[market]['buy_volume'][0]
 
-                    status[market] = run_algorithm(data.get(market), status.get(market))
+                    status[market], wallet = run_algorithm(market,
+                                                           data.get(market),
+                                                           status.get(market),
+                                                           wallet,
+                                                           amount_per_call,
+                                                           bittrex,
+                                                           logger)
 
                     completed_buy = status.get(market).get('current_buy')
 
@@ -313,7 +354,7 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                         completed_buy['stop'] = format_time(completed_buy['stop'], "%Y-%m-%d %H:%M:%S")
 
                         db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
-                        logger.info('Tradebot: completed buy.', completed_buy)
+                        logger.info('Tradebot: completed order.', completed_buy)
                         status[market]['current_buy'] = {}
 
             stop = time()
@@ -326,9 +367,23 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
                 if signal == 'STOP':
                     logger.info('Tradebot: Stopping tradebot ...')
                     break
+
+    except (ConnectionError, RuntimeError) as e:
+        logger.error(e)
+        logger.info('Tradebot: Stopping tradebot ...')
     finally:
         db.close()
-        # TODO: add functionality to sell all orders when exiting
+        # TODO: check if any open orders
+
+        open_positions = {k: wallet.get(k) for k in wallet if wallet.get(k) > 0 and k != 'BTC'}
+        if any(open_positions):
+            logger.info('Tradebot: Open positions remaining:')
+            logger.info(open_positions)
+            logger.info('Tradebot: Closing open positions.')
+            close_positions(bittrex, open_positions, logger)
+        else:
+            logger.info('Tradebot: No positions open. Safe to exit.')
+
         logger.info('Tradebot: Stopped tradebot.')
         logger.info('Tradebot: Database connection closed.')
 
@@ -341,8 +396,8 @@ def run_tradebot(control_queue, data_queue, markets, table_name, logger):
 @app.route('/scraper/start/<database_name>', methods=['GET'])
 def _scraper_start(database_name):
 
-    print('Reached START SCRAPER endpoint.')
-    print('Starting scraper using database: {}.'.format(database_name))
+    main_logger.info('Detected SCRAPER: START endpoint.')
+    main_logger.info('Starting scraper using database: {}.'.format(database_name))
 
     scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE, database_name, main_logger))
     scraper.start()
@@ -353,44 +408,85 @@ def _scraper_start(database_name):
 @app.route('/scraper/stop', methods=['GET'])
 def _scraper_stop():
 
-    print('Reached STOP SCRAPER endpoint.')
+    main_logger.info('Detected SCRAPER: STOP endpoint.')
 
     SCRAPER_QUEUE.put("STOP")
 
     return jsonify("STOPPED SCRAPER"), 200
 
 
+@app.route('/tradebot/set/wallet/<float:amount>', methods=['GET'])
+def _tradebot_set_wallet(amount):
+
+    main_logger.info('Detected TRADEBOT: SET WALLET endpoint.')
+
+    global WALLET_TOTAL
+    WALLET_TOTAL = Decimal(amount).quantize(DIGITS)
+
+    message = 'Tradebot: Wallet total set successfully: {}'.format(str(WALLET_TOTAL))
+    main_logger.info(message)
+
+    return jsonify(message), 200
+
+
+@app.route('/tradebot/set/call/<float:amount>', methods=['GET'])
+def _tradebot_set_call(amount):
+
+    main_logger.info('Detected TRADEBOT: SET CALL endpoint.')
+
+    global AMOUNT_PER_CALL
+    AMOUNT_PER_CALL = Decimal(amount).quantize(DIGITS)
+
+    message = 'Tradebot: Amount per call set successfully: {}'.format(str(AMOUNT_PER_CALL))
+    main_logger.info(message)
+
+    return jsonify(message), 200
+
+
 @app.route('/tradebot/start/<table_name>', methods=['GET'])
 def _tradebot_start(table_name):
 
-    print('Reached START TRADEBOT endpoint.')
+    main_logger.info('Detected TRADEBOT: START endpoint.')
 
-    SCRAPER_QUEUE.put("START TRADEBOT")
+    SCRAPER_QUEUE.put('START TRADEBOT')
 
-    global tradebot
+    if WALLET_TOTAL == 0:
+        error = 'Tradebot: Error: Wallet total: {}. Must be > 0.'.format(str(WALLET_TOTAL))
+        main_logger.error(error)
+
+        return jsonify(error), 400
+
+    if AMOUNT_PER_CALL < 0.0005:
+        error = 'Tradebot: Error: Amount per call: {}. Must be > 0.0005.'.format(str(AMOUNT_PER_CALL))
+        main_logger.error(error)
+
+        return jsonify(error), 400
+
     tradebot = Process(target=run_tradebot,
-                       args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS, table_name, main_logger))
+                       args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS,
+                             WALLET_TOTAL, AMOUNT_PER_CALL, table_name, main_logger))
     tradebot.start()
 
-    return jsonify("STARTED TRADEBOT"), 200
+    return jsonify('Tradebot: Started successfully. Wallet total: {}. Amount per call: {}'.format(
+        str(WALLET_TOTAL), str(AMOUNT_PER_CALL))), 200
 
 
 @app.route('/tradebot/stop', methods=['GET'])
 def _tradebot_stop():
 
-    print('Reached STOP TRADEBOT endpoint.')
+    main_logger.info('Detected TRADEBOT: STOP endpoint.')
 
-    SCRAPER_QUEUE.put("STOP TRADEBOT")
+    SCRAPER_QUEUE.put('STOP TRADEBOT')
     TRADEBOT_QUEUE.put("STOP")
 
     return jsonify("STOPPED TRADEBOT"), 200
 
 
-# TODO: Implement method to shut down server
+# TODO: Implement check that scraper and tradebot have successfully exited
 @app.route('/shutdown', methods=['POST'])
 def _shutdown():
 
-    print('Reached SHUTDOWN endpoint.')
+    main_logger('Detected SHUTDOWN endpoint.')
 
     shutdown_server()
 
