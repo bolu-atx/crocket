@@ -325,15 +325,21 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             scraper_data = data_queue.get()
 
-            for market in scraper_data:
 
-                if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                    data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
-                    data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                    data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+            try:
+                for market in scraper_data:
 
-                if len(data[market]['datetime']) == 0:
-                    print("ERROR", scraper_data.get(market))
+                    if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
+                        data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
+                        data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
+                        data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+
+                    if len(data[market].get('datetime')) == 0:
+                        print("ERROR", scraper_data.get(market))
+            except Exception as e:
+                logger.error('Tradebot: ERROR during appending running data.')
+                logger.error(e)
+                raise RuntimeError('Error from modifying running data.')
 
             start = time()
             for market in scraper_data:
@@ -344,13 +350,18 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                     del data[market]['wprice'][0]
                     del data[market]['buy_volume'][0]
 
-                    status[market], wallet = run_algorithm(market,
-                                                           data.get(market),
-                                                           status.get(market),
-                                                           wallet,
-                                                           amount_per_call,
-                                                           bittrex,
-                                                           logger)
+                    try:
+                        status[market], wallet = run_algorithm(market,
+                                                               data.get(market),
+                                                               status.get(market),
+                                                               wallet,
+                                                               amount_per_call,
+                                                               bittrex,
+                                                               logger)
+                    except Exception as e:
+                        logger.error('Tradebot: ERROR during run algorithm.')
+                        logger.error(e)
+                        raise RuntimeError('Error from algorithm')
 
                     completed_buy = status.get(market).get('current_buy')
 
