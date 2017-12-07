@@ -97,12 +97,15 @@ SKIP_LIST = []  # TODO: implement if necessary
 MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
 
 # ==============================================================================
-# Set up queues
+# Set up queues and processes
 # ==============================================================================
 
 SCRAPER_QUEUE = Queue()
 TRADEBOT_QUEUE = Queue()
 SCRAPER_TRADEBOT_QUEUE = Queue()
+
+scraper = Process()
+tradebot = Process()
 
 # ==============================================================================
 # Helper functions
@@ -411,6 +414,7 @@ def _scraper_start(database_name):
     main_logger.info('Detected SCRAPER: START endpoint.')
     main_logger.info('Starting scraper using database: {}.'.format(database_name))
 
+    global scraper
     scraper = Process(target=run_scraper, args=(SCRAPER_QUEUE, database_name, main_logger))
     scraper.start()
 
@@ -423,6 +427,8 @@ def _scraper_stop():
     main_logger.info('Detected SCRAPER: STOP endpoint.')
 
     SCRAPER_QUEUE.put("STOP")
+
+    scraper.join()
 
     return jsonify("STOPPED SCRAPER"), 200
 
@@ -474,6 +480,7 @@ def _tradebot_start(table_name):
 
         return jsonify(error), 400
 
+    global tradebot
     tradebot = Process(target=run_tradebot,
                        args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS,
                              WALLET_TOTAL, AMOUNT_PER_CALL, table_name, main_logger))
@@ -490,6 +497,8 @@ def _tradebot_stop():
 
     SCRAPER_QUEUE.put('STOP TRADEBOT')
     TRADEBOT_QUEUE.put("STOP")
+
+    tradebot.join()
 
     return jsonify("STOPPED TRADEBOT"), 200
 
