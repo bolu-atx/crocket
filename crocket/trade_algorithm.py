@@ -1,4 +1,4 @@
-from numpy import mean, median
+from numpy import mean
 from decimal import Decimal
 
 from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
@@ -32,14 +32,14 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
 
         # No action if purchased within time of last buy
         if last_buy_time_difference < wait_time:
-            return status
+            return status, wallet
 
         # No action if not enough to place buy order
         if wallet.get('BTC') < buy_amount:
             logger.info('Tradebot: Not enough in wallet to place buy order. Skipping.')
             status['last_buy'] = {'start': current_time,
                                   'buy_price': current_price}
-            return status
+            return status, wallet
 
         sample_volume_mean = mean(buyvolume[-duration:])
         volume_lag_total = sum(buyvolume[-(duration + volume_lag_duration):-duration])
