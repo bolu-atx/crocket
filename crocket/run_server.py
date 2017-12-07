@@ -11,6 +11,7 @@ from os import environ
 from os.path import dirname, join, realpath
 from random import shuffle
 from time import sleep, time
+from traceback import format_exc
 
 from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry, return_request_input
 from scraper_helper import get_data, process_data
@@ -325,21 +326,15 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             scraper_data = data_queue.get()
 
+            for market in scraper_data:
 
-            try:
-                for market in scraper_data:
+                if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
+                    data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
+                    data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
+                    data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
-                    if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                        data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
-                        data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                        data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
-
-                    if len(data[market].get('datetime')) == 0:
-                        print("ERROR", scraper_data.get(market))
-            except Exception as e:
-                logger.error('Tradebot: ERROR during appending running data.')
-                logger.error(e)
-                raise RuntimeError('Error from modifying running data.')
+                if len(data[market].get('datetime')) == 0:
+                    print("ERROR", scraper_data.get(market))
 
             start = time()
             for market in scraper_data:
@@ -358,9 +353,11 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                                                                amount_per_call,
                                                                bittrex,
                                                                logger)
-                    except Exception as e:
+                    except Exception:
                         logger.error('Tradebot: ERROR during run algorithm.')
-                        logger.error(e)
+                        error_message = format_exc()
+                        logger.error(error_message)
+
                         raise RuntimeError('Error from algorithm')
 
                     completed_buy = status.get(market).get('current_buy')
