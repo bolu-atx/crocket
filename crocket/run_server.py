@@ -154,7 +154,8 @@ def format_tradebot_entry(market, entry):
             ('sell_time', entry.get('stop')),
             ('sell_price', entry.get('sell_price')),
             ('sell_total', entry.get('sell_total')),
-            ('profit', entry.get('profit'))]
+            ('profit', entry.get('profit')),
+            ('percent', entry.get('percent'))]
 
 
 def close_positions(bittrex, wallet, logger=None):
@@ -246,15 +247,11 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                     SCRAPER_TRADEBOT_QUEUE.put(tradebot_entries)
 
-                    logger.info("Scraper: Passing {} entries to tradebot.".format(str(len(tradebot_entries))))
-
                 if entries:
                     formatted_entries = list(chain.from_iterable(
                         [[(x, *format_bittrex_entry(y)) for y in entries[x]] for x in entries]))
 
                     db.insert_transaction_query(formatted_entries)
-
-                    logger.info("Scraper: Inserted {} entries into database".format(str(len(formatted_entries))))
 
                 if not control_queue.empty():
 
@@ -328,17 +325,21 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             scraper_data = data_queue.get()
 
-            logger.info('TRADEBOT: Received {} entries from scraper.'.format(str(len(scraper_data))))
 
-            for market in scraper_data:
+            try:
+                for market in scraper_data:
 
-                if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                    data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
-                    data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                    data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+                    if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
+                        data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
+                        data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
+                        data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
-                if len(data[market]['datetime']) == 0:
-                    print("ERROR", scraper_data.get(market))
+                    if len(data[market].get('datetime')) == 0:
+                        print("ERROR", scraper_data.get(market))
+            except Exception as e:
+                logger.error('Tradebot: ERROR during appending running data.')
+                logger.error(e)
+                raise RuntimeError('Error from modifying running data.')
 
             start = time()
             for market in scraper_data:
@@ -349,13 +350,18 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                     del data[market]['wprice'][0]
                     del data[market]['buy_volume'][0]
 
-                    status[market], wallet = run_algorithm(market,
-                                                           data.get(market),
-                                                           status.get(market),
-                                                           wallet,
-                                                           amount_per_call,
-                                                           bittrex,
-                                                           logger)
+                    try:
+                        status[market], wallet = run_algorithm(market,
+                                                               data.get(market),
+                                                               status.get(market),
+                                                               wallet,
+                                                               amount_per_call,
+                                                               bittrex,
+                                                               logger)
+                    except Exception as e:
+                        logger.error('Tradebot: ERROR during run algorithm.')
+                        logger.error(e)
+                        raise RuntimeError('Error from algorithm')
 
                     completed_buy = status.get(market).get('current_buy')
 
@@ -495,7 +501,7 @@ def _tradebot_stop():
 @app.route('/shutdown', methods=['POST'])
 def _shutdown():
 
-    main_logger('Detected SHUTDOWN endpoint.')
+    main_logger.info('Detected SHUTDOWN endpoint.')
 
     shutdown_server()
 
