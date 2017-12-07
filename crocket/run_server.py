@@ -501,7 +501,7 @@ def _tradebot_stop():
 @app.route('/shutdown', methods=['POST'])
 def _shutdown():
 
-    main_logger('Detected SHUTDOWN endpoint.')
+    main_logger.info('Detected SHUTDOWN endpoint.')
 
     shutdown_server()
 
