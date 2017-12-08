@@ -30,11 +30,11 @@ main_logger.setLevel(10)
 
 fh = FileHandler(
     '/var/tmp/scraper.{:%Y:%m:%d:%H:%M:%S}.log'.format(datetime.now()))
-fh.setFormatter(Formatter('%(asctime)s:%(name)s:%(levelname)s: %(message)s'))
+fh.setFormatter(Formatter('%(asctime)s:%(levelname)s: %(message)s'))
 main_logger.addHandler(fh)
 
 sh = StreamHandler()
-sh.setFormatter(Formatter('%(levelname)s: %(message)s'))
+sh.setFormatter(Formatter('%(asctime)s:%(levelname)s: %(message)s'))
 main_logger.addHandler(sh)
 
 main_logger.info('Initialized logger.')
@@ -336,10 +336,6 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                     data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
                     data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
 
-                if len(data[market].get('datetime')) == 0:
-                    print("ERROR", scraper_data.get(market))
-
-            start = time()
             for market in scraper_data:
 
                 if len(data.get(market).get('datetime')) > 90:
@@ -363,18 +359,23 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
                         raise RuntimeError('Error from algorithm')
 
-                    completed_buy = status.get(market).get('current_buy')
+                    try:
+                        completed_buy = status.get(market).get('current_buy')
 
-                    if completed_buy.get('profit'):
-                        completed_buy['start'] = format_time(completed_buy['start'], "%Y-%m-%d %H:%M:%S")
-                        completed_buy['stop'] = format_time(completed_buy['stop'], "%Y-%m-%d %H:%M:%S")
+                        if completed_buy and completed_buy.get('profit'):
+                            completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
+                            completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
-                        db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
-                        logger.info('Tradebot: completed order.', completed_buy)
-                        status[market]['current_buy'] = {}
+                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
+                            logger.info('Tradebot: completed order.', completed_buy)
+                            status[market]['current_buy'] = {}
 
-            stop = time()
-            logger.info('Tradebot: Elapsed time: {}'.format(str(stop-start)))
+                    except Exception:
+                        logger.error('Tradebot: ERROR formatting completed order data.')
+                        error_message = format_exc()
+                        logger.error(error_message)
+
+                        raise RuntimeError('Error from getting completed order data.')
 
             if not control_queue.empty():
 
