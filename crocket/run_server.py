@@ -103,9 +103,12 @@ MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
 SCRAPER_QUEUE = Queue()
 TRADEBOT_QUEUE = Queue()
 SCRAPER_TRADEBOT_QUEUE = Queue()
+# TRADEBOT_TELEGRAM_QUEUE = Queue()
+# TELEGRAM_TRADEBOT_QUEUE = Queue()
 
 scraper = Process()
 tradebot = Process()
+# telegram = Process()
 
 # ==============================================================================
 # Helper functions
@@ -344,6 +347,7 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                     del running_data[market]['datetime'][0]
                     del running_data[market]['wprice'][0]
                     del running_data[market]['buy_volume'][0]
+                    del running_data[market]['sell_volume'][0]
 
                     try:
                         running_status[market], wallet = run_algorithm(market,
@@ -404,6 +408,22 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
         logger.info('Tradebot: Stopped tradebot.')
         logger.info('Tradebot: Database connection closed.')
+
+
+# TODO: implement telegram bot
+def run_telegram(from_tradebot_queue, to_tradebot_queue):
+
+    while True:
+
+        order_data = from_tradebot_queue.get()
+
+        if order_data.get('profit'):
+
+            print('completed order')
+
+        else:
+
+            print('buy order')
 
 
 # ==============================================================================
