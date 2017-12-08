@@ -429,8 +429,6 @@ def _scraper_stop():
 
     SCRAPER_QUEUE.put("STOP")
 
-    scraper.join()
-
     return jsonify("STOPPED SCRAPER"), 200
 
 
