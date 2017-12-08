@@ -275,7 +275,6 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Scraper: Elapsed time: {}'.format(str(run_time)))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -340,7 +339,7 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             for market in scraper_data.keys():
 
-                if len(running_data.get(market).get('datetime')) > 90:
+                if len(running_data.get(market).get('datetime')) > 65:
 
                     del running_data[market]['datetime'][0]
                     del running_data[market]['wprice'][0]
@@ -368,8 +367,9 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                             completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
                             completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
-                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
                             logger.info('Tradebot: completed order.', completed_buy)
+
+                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
                             running_status[market]['current_buy'] = {}
 
                     except Exception:
