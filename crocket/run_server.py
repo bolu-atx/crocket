@@ -275,7 +275,6 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Scraper: Elapsed time: {}'.format(str(run_time)))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -291,8 +290,8 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
 def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_call, table_name, logger):
 
-    data = {}
-    status = {}
+    running_data = {}
+    running_status = {}
     wallet = {'BTC': wallet_total}
 
     bought_time = datetime(2017, 11, 11, 11, 11).astimezone(tz=None)
@@ -301,15 +300,16 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                 'buy_price': 0}
 
     for market in markets:
-        status[market] = {'bought': False,
-                          'last_buy': last_buy,
-                          'current_buy': {},
-                          'stop_gain': False,
-                          'maximize_gain': False}
+        running_status[market] = {'bought': False,
+                                  'last_buy': last_buy,
+                                  'current_buy': {},
+                                  'stop_gain': False,
+                                  'maximize_gain': False}
 
-        data[market] = {'datetime': [],
-                        'wprice': [],
-                        'buy_volume': []}
+        running_data[market] = {'datetime': [],
+                                'wprice': [],
+                                'buy_volume': [],
+                                'sell_volume': []}
 
         wallet[market] = Decimal(0).quantize(DIGITS)
 
@@ -329,29 +329,30 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             scraper_data = data_queue.get()
 
-            for market in scraper_data:
+            for market, entry in scraper_data.items():
 
-                if scraper_data.get(market).get('wprice') > 0:  # Temporary fix for entries with 0 price
-                    data[market]['datetime'].append(scraper_data.get(market).get('datetime'))
-                    data[market]['wprice'].append(scraper_data.get(market).get('wprice'))
-                    data[market]['buy_volume'].append(scraper_data.get(market).get('buy_volume'))
+                if entry.get('wprice') > 0:  # Temporary fix for entries with 0 price
+                    running_data[market]['datetime'].append(entry.get('datetime'))
+                    running_data[market]['wprice'].append(entry.get('wprice'))
+                    running_data[market]['buy_volume'].append(entry.get('buy_volume'))
+                    running_data[market]['sell_volume'].append(entry.get('sell_volume'))
 
-            for market in scraper_data:
+            for market in scraper_data.keys():
 
-                if len(data.get(market).get('datetime')) > 90:
+                if len(running_data.get(market).get('datetime')) > 65:
 
-                    del data[market]['datetime'][0]
-                    del data[market]['wprice'][0]
-                    del data[market]['buy_volume'][0]
+                    del running_data[market]['datetime'][0]
+                    del running_data[market]['wprice'][0]
+                    del running_data[market]['buy_volume'][0]
 
                     try:
-                        status[market], wallet = run_algorithm(market,
-                                                               data.get(market),
-                                                               status.get(market),
-                                                               wallet,
-                                                               amount_per_call,
-                                                               bittrex,
-                                                               logger)
+                        running_status[market], wallet = run_algorithm(market,
+                                                                       running_data.get(market),
+                                                                       running_status.get(market),
+                                                                       wallet,
+                                                                       amount_per_call,
+                                                                       bittrex,
+                                                                       logger)
                     except Exception:
                         logger.error('Tradebot: ERROR during run algorithm.')
                         error_message = format_exc()
@@ -360,15 +361,16 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                         raise RuntimeError('Error from algorithm')
 
                     try:
-                        completed_buy = status.get(market).get('current_buy')
+                        completed_buy = running_status.get(market).get('current_buy')
 
                         if completed_buy and completed_buy.get('profit'):
                             completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
                             completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
-                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
                             logger.info('Tradebot: completed order.', completed_buy)
-                            status[market]['current_buy'] = {}
+
+                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
+                            running_status[market]['current_buy'] = {}
 
                     except Exception:
                         logger.error('Tradebot: ERROR formatting completed order data.')
@@ -517,7 +519,7 @@ try:
     # ==========================================================================
     print('Starting server ...')
     # ==========================================================================
-    app.run(debug=True, port=9999)
+    app.run(debug=False, port=9999)
 finally:
 
     # ==========================================================================

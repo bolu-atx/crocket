@@ -10,16 +10,20 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                   price_lag_duration=5,
                   price_lag_threshold=0.05,
                   volume_lag_duration=60,
-                  volume_lag_threshold=25,
+                  buy_volume_lag_min=10,
+                  buy_volume_lag_max=40,
+                  sell_volume_lag_min=10,
+                  sell_volume_lag_max=40,
                   profit_percent=0.05,
                   stop_loss_percent=0.01,
-                  stop_gain_percent=0.01,
+                  stop_gain_percent=0.02,
                   max_hold_time=14400,
                   wait_time=14400,
                   digits=Decimal('1e-8')):
 
     time = data.get('datetime')
     buyvolume = data.get('buy_volume')
+    sellvolume = data.get('sell_volume')
     wprice = data.get('wprice')
 
     current_time = time[-1]
@@ -41,16 +45,20 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                                   'buy_price': current_price}
             return status, wallet
 
-        sample_volume_mean = mean(buyvolume[-duration:])
-        volume_lag_total = sum(buyvolume[-(duration + volume_lag_duration):-duration])
+        sample_buy_volume_mean = mean(buyvolume[-duration:])
+        buy_volume_lag_total = sum(buyvolume[-(duration + volume_lag_duration):-duration])
+        sell_volume_lag_total = sum(sellvolume[-(duration + volume_lag_duration):-duration])
 
-        if sample_volume_mean > 0 and volume_lag_total < volume_lag_threshold:
+        if sample_buy_volume_mean > 0 and \
+            buy_volume_lag_min < buy_volume_lag_total < buy_volume_lag_max and \
+                sell_volume_lag_min < sell_volume_lag_total < sell_volume_lag_max:
+
             previous_price = Decimal(
                 mean(wprice[-(duration + price_lag_time):-(duration + price_lag_time - price_lag_duration)])).quantize(digits)
 
-            if sample_volume_mean > 2 and \
+            if sample_buy_volume_mean > 2 and \
                     abs((current_price - previous_price) / previous_price) < price_lag_threshold and \
-                    sum([1 if x > 1 else 0 for x in buyvolume[-duration:]]) >= 3:
+                    sum([1 if x > 1 else 0 for x in buyvolume[-duration:]]) >= 2:
 
                 # TODO: get BTC in wallet available, if fails, continue - buy order will fail and bot resumes
                 # TODO: get orderbook of market, if fails, set default buy rate value and continue with buy order
