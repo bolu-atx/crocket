@@ -169,9 +169,9 @@ def close_positions(bittrex, wallet, logger=None):
 
     for market in wallet:
 
-        if market != 'BTC':
+        sell_total = wallet.get(market)
+        if market != 'BTC' and sell_total > 0:
             try:
-                sell_total = wallet.get(market)
                 sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
                 sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger)
 
@@ -206,7 +206,7 @@ def shutdown_server():
 
 
 def run_scraper(control_queue, database_name, logger, markets=MARKETS,
-                max_api_retry=4, interval=60, sleep_time=10):
+                max_api_retry=4, interval=30, sleep_time=5):
 
     # Initialize database object
     initialize_databases(database_name, markets, logger=logger)
