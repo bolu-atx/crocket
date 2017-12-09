@@ -169,9 +169,9 @@ def close_positions(bittrex, wallet, logger=None):
 
     for market in wallet:
 
-        if market != 'BTC':
+        sell_total = wallet.get(market)
+        if market != 'BTC' and sell_total > 0:
             try:
-                sell_total = wallet.get(market)
                 sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
                 sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger)
 
