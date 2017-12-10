@@ -77,11 +77,10 @@ def calculate_metrics(data, start_datetime, digits=8):
     return metrics
 
 
-def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=2, logger=None):
+def get_data(markets, bittrex, session, proxies, proxy_indexes, logger=None):
 
     futures = []
     response_dict = {}
-    num_proxies = len(proxies)
 
     for index in range(len(markets)):
         market = markets[index]
@@ -122,35 +121,7 @@ def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=2,
 
         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
 
-            api_retry = 0
-
-            while True:
-
-                if api_retry > max_api_retry:
-                    logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(max_api_retry),
-                                                                                         future.market))
-                    break
-
-                r = randint(0, num_proxies - 1)
-                proxy = configure_ip(proxies[r])
-
-                try:
-                    response = session.get(future.url,
-                                           background_callback=process_response,
-                                           headers=future.headers,
-                                           timeout=2,
-                                           proxies=proxy)
-                    response_dict[future.market] = response.result().data.get('result')
-                    if not response_dict[future.market]:
-                        logger.debug('NO API RESPONSE, RETRYING: {} ...'.format(future.market))
-                        api_retry += 1
-                        continue
-
-                    break
-
-                except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
-                    api_retry += 1
-                    logger.debug('Retried API call failed for {}.'.format(future.market))
+            logger.info('Failed API call for {}, skipping.'.format(future.market))
 
     return response_dict
 

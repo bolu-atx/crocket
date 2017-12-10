@@ -245,7 +245,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                 start = time()
 
                 response_dict = get_data(MARKETS, bittrex_request, session, PROXIES, proxy_indexes,
-                                         max_api_retry=max_api_retry, logger=logger)
+                                         logger=logger)
 
                 working_data, current_datetime, last_price, weighted_price, entries = \
                     process_data(response_dict, working_data, current_datetime, last_price, weighted_price, logger,
@@ -280,6 +280,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
+                logger.info('Tradebot: Total time: {}'.format(str(run_time)))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
