@@ -208,7 +208,7 @@ def shutdown_server():
 
 
 def run_scraper(control_queue, database_name, logger, markets=MARKETS,
-                max_api_retry=4, interval=30, sleep_time=5):
+                max_api_retry=4, interval=60, sleep_time=5):
 
     # Initialize database object
     initialize_databases(database_name, markets, logger=logger)
