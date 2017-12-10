@@ -77,7 +77,7 @@ def calculate_metrics(data, start_datetime, digits=8):
     return metrics
 
 
-def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=3, logger=None):
+def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=2, logger=None):
 
     futures = []
     response_dict = {}
@@ -126,7 +126,7 @@ def get_data(markets, bittrex, session, proxies, proxy_indexes, max_api_retry=3,
 
             while True:
 
-                if api_retry >= max_api_retry:
+                if api_retry > max_api_retry:
                     logger.debug('MAX API RETRY LIMIT ({}) REACHED. SKIPPING {}.'.format(str(max_api_retry),
                                                                                          future.market))
                     break
