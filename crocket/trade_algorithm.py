@@ -5,7 +5,7 @@ from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, u
 
 
 def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
-                  duration=3,
+                  duration=1,
                   price_lag_time=30,
                   price_lag_duration=5,
                   price_lag_threshold=0.05,
@@ -14,7 +14,7 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                   buy_volume_lag_max=40,
                   sell_volume_lag_min=10,
                   sell_volume_lag_max=40,
-                  profit_percent=0.05,
+                  profit_percent=0.04,
                   stop_loss_percent=0.01,
                   stop_gain_percent=0.02,
                   max_hold_time=14400,
@@ -57,8 +57,7 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                 mean(wprice[-(duration + price_lag_time):-(duration + price_lag_time - price_lag_duration)])).quantize(digits)
 
             if sample_buy_volume_mean > 2 and \
-                    abs((current_price - previous_price) / previous_price) < price_lag_threshold and \
-                    sum([1 if x > 1 else 0 for x in buyvolume[-duration:]]) >= 2:
+                    abs((current_price - previous_price) / previous_price) < price_lag_threshold:
 
                 # TODO: get BTC in wallet available, if fails, continue - buy order will fail and bot resumes
                 # TODO: get orderbook of market, if fails, set default buy rate value and continue with buy order
@@ -74,6 +73,7 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
 
                         status['bought'] = True
                         status['current_buy'] = {'start': utc_to_local(convert_bittrex_timestamp_to_datetime(buy_result.get('Closed'))),
+                                                 'buy_signal': current_price,
                                                  'buy_price': Decimal(buy_result.get('PricePerUnit')).quantize(digits),
                                                  'buy_total': (Decimal(buy_result.get('Price')) +
                                                               Decimal(buy_result.get('CommissionPaid'))).quantize(digits),
@@ -135,6 +135,7 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
 
                     status['current_buy']['stop'] = utc_to_local(convert_bittrex_timestamp_to_datetime(sell_result.get('Closed')))
 
+                    status['current_buy']['sell_signal'] = current_price
                     status['current_buy']['sell_price'] = Decimal(sell_result.get('PricePerUnit')).quantize(digits)
 
                     sell_total = (Decimal(sell_result.get('Price')) -

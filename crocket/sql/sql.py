@@ -161,9 +161,11 @@ class Database:
                 'id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, ' \
                 'market CHAR(11) NOT NULL, ' \
                 'buy_time DATETIME NOT NULL, ' \
+                'buy_signal DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'buy_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'buy_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_time DATETIME NOT NULL, ' \
+                'sell_signal DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'profit DECIMAL(9,8) SIGNED NOT NULL, ' \
