@@ -103,21 +103,21 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
         current_buy = status.get('current_buy')
         current_buy_hold_time = (current_time - current_buy.get('start')).total_seconds()
 
-        stop_gain_threshold = (current_buy.get('buy_price') * Decimal(stop_gain_percent + 1)).quantize(digits)
+        stop_gain_threshold = (current_buy.get('buy_signal') * Decimal(stop_gain_percent + 1)).quantize(digits)
 
         # Activate stop gain signal after passing threshold percentage
         if current_price > stop_gain_threshold:
             status['stop_gain'] = True
 
         # Activate maximize gain signal after passing profit threshold
-        if current_price > (current_buy.get('buy_price') * Decimal(profit_percent + 1)).quantize(digits):
+        if current_price > (current_buy.get('buy_signal') * Decimal(profit_percent + 1)).quantize(digits):
             status['maximize_gain'] = True
 
         # Sell if hit stop loss
         # Sell after hitting profit threshold followed by drop in price of X%
         # Sell after passing max hold time
         # Sell after detecting stop gain signal and price drop below stop gain price
-        if (current_price < (current_buy.get('buy_price') * Decimal(1 - stop_loss_percent)).quantize(digits)) or \
+        if (current_price < (current_buy.get('buy_signal') * Decimal(1 - stop_loss_percent)).quantize(digits)) or \
                 status.get('maximize_gain') or \
                 current_buy_hold_time > max_hold_time or \
                 (status.get('stop_gain') and current_price < stop_gain_threshold):
