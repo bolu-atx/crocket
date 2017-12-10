@@ -156,9 +156,11 @@ def format_tradebot_entry(market, entry):
 
     return [('market', market),
             ('buy_time', entry.get('start')),
+            ('buy_signal', entry.get('buy_signal')),
             ('buy_price', entry.get('buy_price')),
             ('buy_total', entry.get('buy_total')),
             ('sell_time', entry.get('stop')),
+            ('sell_signal', entry.get('sell_signal')),
             ('sell_price', entry.get('sell_price')),
             ('sell_total', entry.get('sell_total')),
             ('profit', entry.get('profit')),
