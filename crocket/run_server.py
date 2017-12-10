@@ -92,7 +92,7 @@ with open(PROXY_LIST_PATH, 'r') as f:
 WALLET_TOTAL = 0
 AMOUNT_PER_CALL = 0
 
-SKIP_LIST = []  # TODO: implement if necessary
+SKIP_LIST = ['BTC-BCC', 'BTC-ETH', 'BTC-LSK', 'BTC-NEO', 'BTC-OMG', 'BTC-XRP', 'BTC-LTC']
 
 MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
 
@@ -294,7 +294,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
         logger.info("Scraper: Database connection closed.")
 
 
-def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_call, table_name, logger):
+def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_call, table_name, logger, skip_list):
 
     running_data = {}
     running_status = {}
@@ -306,18 +306,20 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                 'buy_price': 0}
 
     for market in markets:
-        running_status[market] = {'bought': False,
-                                  'last_buy': last_buy,
-                                  'current_buy': {},
-                                  'stop_gain': False,
-                                  'maximize_gain': False}
 
-        running_data[market] = {'datetime': [],
-                                'wprice': [],
-                                'buy_volume': [],
-                                'sell_volume': []}
+        if market not in skip_list:
+            running_status[market] = {'bought': False,
+                                      'last_buy': last_buy,
+                                      'current_buy': {},
+                                      'stop_gain': False,
+                                      'maximize_gain': False}
 
-        wallet[market] = Decimal(0).quantize(DIGITS)
+            running_data[market] = {'datetime': [],
+                                    'wprice': [],
+                                    'buy_volume': [],
+                                    'sell_volume': []}
+
+            wallet[market] = Decimal(0).quantize(DIGITS)
 
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
@@ -337,54 +339,56 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
             for market, entry in scraper_data.items():
 
-                if entry.get('wprice') > 0:  # Temporary fix for entries with 0 price
-                    running_data[market]['datetime'].append(entry.get('datetime'))
-                    running_data[market]['wprice'].append(entry.get('wprice'))
-                    running_data[market]['buy_volume'].append(entry.get('buy_volume'))
-                    running_data[market]['sell_volume'].append(entry.get('sell_volume'))
+                if market not in skip_list:
+                    if entry.get('wprice') > 0:  # Temporary fix for entries with 0 price
+                        running_data[market]['datetime'].append(entry.get('datetime'))
+                        running_data[market]['wprice'].append(entry.get('wprice'))
+                        running_data[market]['buy_volume'].append(entry.get('buy_volume'))
+                        running_data[market]['sell_volume'].append(entry.get('sell_volume'))
 
             for market in scraper_data.keys():
 
-                if len(running_data.get(market).get('datetime')) > 65:
+                if market not in skip_list:
+                    if len(running_data.get(market).get('datetime')) > 65:
 
-                    del running_data[market]['datetime'][0]
-                    del running_data[market]['wprice'][0]
-                    del running_data[market]['buy_volume'][0]
-                    del running_data[market]['sell_volume'][0]
+                        del running_data[market]['datetime'][0]
+                        del running_data[market]['wprice'][0]
+                        del running_data[market]['buy_volume'][0]
+                        del running_data[market]['sell_volume'][0]
 
-                    try:
-                        running_status[market], wallet = run_algorithm(market,
-                                                                       running_data.get(market),
-                                                                       running_status.get(market),
-                                                                       wallet,
-                                                                       amount_per_call,
-                                                                       bittrex,
-                                                                       logger)
-                    except Exception:
-                        logger.error('Tradebot: ERROR during run algorithm.')
-                        error_message = format_exc()
-                        logger.error(error_message)
+                        try:
+                            running_status[market], wallet = run_algorithm(market,
+                                                                           running_data.get(market),
+                                                                           running_status.get(market),
+                                                                           wallet,
+                                                                           amount_per_call,
+                                                                           bittrex,
+                                                                           logger)
+                        except Exception:
+                            logger.error('Tradebot: ERROR during run algorithm.')
+                            error_message = format_exc()
+                            logger.error(error_message)
 
-                        raise RuntimeError('Error from algorithm')
+                            raise RuntimeError('Error from algorithm')
 
-                    try:
-                        completed_buy = running_status.get(market).get('current_buy')
+                        try:
+                            completed_buy = running_status.get(market).get('current_buy')
 
-                        if completed_buy and completed_buy.get('profit'):
-                            completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
-                            completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
+                            if completed_buy and completed_buy.get('profit'):
+                                completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
+                                completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
-                            logger.info('Tradebot: completed order.', completed_buy)
+                                logger.info('Tradebot: completed order.', completed_buy)
 
-                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
-                            running_status[market]['current_buy'] = {}
+                                db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
+                                running_status[market]['current_buy'] = {}
 
-                    except Exception:
-                        logger.error('Tradebot: ERROR formatting completed order data.')
-                        error_message = format_exc()
-                        logger.error(error_message)
+                        except Exception:
+                            logger.error('Tradebot: ERROR formatting completed order data.')
+                            error_message = format_exc()
+                            logger.error(error_message)
 
-                        raise RuntimeError('Error from getting completed order data.')
+                            raise RuntimeError('Error from getting completed order data.')
 
             if not control_queue.empty():
 
@@ -507,7 +511,7 @@ def _tradebot_start(table_name):
     global tradebot
     tradebot = Process(target=run_tradebot,
                        args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS,
-                             WALLET_TOTAL, AMOUNT_PER_CALL, table_name, main_logger))
+                             WALLET_TOTAL, AMOUNT_PER_CALL, table_name, main_logger, SKIP_LIST))
     tradebot.start()
 
     return jsonify('Tradebot: Started successfully. Wallet total: {}. Amount per call: {}'.format(
