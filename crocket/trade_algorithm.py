@@ -14,9 +14,8 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                   buy_volume_lag_max=40,
                   sell_volume_lag_min=10,
                   sell_volume_lag_max=40,
-                  profit_percent=0.04,
                   stop_loss_percent=0.01,
-                  stop_gain_percent=0.02,
+                  stop_gain_increment=0.02,
                   max_hold_time=14400,
                   wait_time=14400,
                   digits=Decimal('1e-8')):
@@ -103,24 +102,32 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
         current_buy = status.get('current_buy')
         current_buy_hold_time = (current_time - current_buy.get('start')).total_seconds()
 
-        stop_gain_threshold = (current_buy.get('buy_signal') * Decimal(stop_gain_percent + 1)).quantize(digits)
+        if status.get('current_stop_gain_percent') == 0.02:
+            loss_threshold = 0
+        else:
+            loss_threshold = 0.01
+
+        current_stop_gain_threshold = (
+            current_buy.get('buy_price') * Decimal(status.get('current_stop_gain_percent') + 1)).quantize(digits)
+        current_stop_gain_min_threshold = (
+            current_buy.get('buy_price') * Decimal(status.get('current_stop_gain_percent') - loss_threshold + 1)).quantize(
+            digits)
+
+        next_stop_gain_threshold = (current_buy.get('buy_price') * Decimal(
+            status.get('current_stop_gain_percent') + stop_gain_increment + 1)).quantize(digits)
 
         # Activate stop gain signal after passing threshold percentage
-        if current_price > stop_gain_threshold:
+        if not status.get('stop_gain') and current_price > current_stop_gain_threshold:
             status['stop_gain'] = True
-
-        # Activate maximize gain signal after passing profit threshold
-        if current_price > (current_buy.get('buy_signal') * Decimal(profit_percent + 1)).quantize(digits):
-            status['maximize_gain'] = True
+        elif status.get('stop_gain') and current_price > next_stop_gain_threshold:
+            status['current_stop_gain_percent'] = status.get('current_stop_gain_percent') + stop_gain_increment
 
         # Sell if hit stop loss
-        # Sell after hitting profit threshold followed by drop in price of X%
         # Sell after passing max hold time
         # Sell after detecting stop gain signal and price drop below stop gain price
         if (current_price < (current_buy.get('buy_signal') * Decimal(1 - stop_loss_percent)).quantize(digits)) or \
-                status.get('maximize_gain') or \
                 current_buy_hold_time > max_hold_time or \
-                (status.get('stop_gain') and current_price < stop_gain_threshold):
+                (status.get('stop_gain') and current_price < current_stop_gain_min_threshold):
 
             # TODO: Ensure sell order sells everything in one order
             sell_total = status.get('current_buy').get('quantity')

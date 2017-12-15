@@ -6,7 +6,7 @@ from json import load as json_load
 from requests.exceptions import ConnectionError
 from requests_futures.sessions import FuturesSession
 from logging import FileHandler, Formatter, StreamHandler, getLogger
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Manager
 from os import environ
 from os.path import dirname, join, realpath
 from random import shuffle
@@ -312,7 +312,7 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                                       'last_buy': last_buy,
                                       'current_buy': {},
                                       'stop_gain': False,
-                                      'maximize_gain': False}
+                                      'current_stop_gain_percent': 0.02}
 
             running_data[market] = {'datetime': [],
                                     'wprice': [],
@@ -415,6 +415,32 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
 
         logger.info('Tradebot: Stopped tradebot.')
         logger.info('Tradebot: Database connection closed.')
+
+
+# def run_manager(order_queue, status_queue):
+#
+#     manager = OrderManager()
+#
+#     while True:
+#
+#         order_data = order_queue.get()
+#
+#         manager.execute_order(order_data)
+#         manager.add_order(order_data)
+#
+#         while manager.open_orders:
+#
+#             # get order data
+#             # if order is completed
+#
+#             if not order_queue.empty():
+#
+#                 break
+#
+#             sleep(1)
+#
+
+
 
 
 # TODO: implement telegram bot
