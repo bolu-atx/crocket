@@ -16,6 +16,10 @@ parser.add_argument('-u',
 
 args = parser.parse_args()
 
+if args.username is None:
+    parser.print_help()
+    exit(1)
+
 # ==============================================================================
 # Set up parameters
 # ==============================================================================
@@ -41,7 +45,6 @@ if KEY != confirm_key:
     exit(1)
 
 cipher = AESCipher(KEY)
-
 make_credentials(cipher.encrypt(USERNAME).decode(), cipher.encrypt(PASSCODE).decode())
 
 print('Successfully created credentials.json ...')
