@@ -14,6 +14,7 @@ class Database:
                  username,
                  password,
                  database_name,
+                 port=3306,
                  logger=None):
 
         self.database_name = database_name
@@ -23,7 +24,8 @@ class Database:
             self.connection = connect(host=hostname,
                                       user=username,
                                       passwd=password,
-                                      db=database_name)
+                                      db=database_name,
+                                      port=port)
         except OperationalError:
             self.connection = None
 
