@@ -49,3 +49,14 @@ class Wallet:
         """
 
         return self._currencies[market].get('base_quantity')
+
+    def update_wallet(self, market, quantity, base_quantity):
+        """
+        Update wallet
+        :param market:
+        :param quantity: Quantity of market
+        :param base_quantity: Quantity of market in BTC
+        :return:
+        """
+
+        # TODO: finish

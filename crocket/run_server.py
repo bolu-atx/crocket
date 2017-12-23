@@ -11,7 +11,6 @@ from os import environ
 from os.path import dirname, join, realpath
 from random import shuffle
 from time import sleep, time
-from traceback import format_exc
 
 from bittrex.bittrex2 import Bittrex, format_bittrex_entry, return_request_input
 from bittrex.BittrexOrder import BittrexOrder
@@ -20,7 +19,7 @@ from bittrex.BittrexData import BittrexData
 from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
-from utilities.constants import OrderType
+from utilities.constants import BittrexConstants, OrderType
 from utilities.credentials import get_credentials
 from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
 from utilities.Wallet import Wallet
@@ -59,8 +58,6 @@ PROXY_LIST_PATH = join(CROCKET_DIRECTORY, 'proxy_list.txt')
 
 MARKETS_LIST_PATH = join(CROCKET_DIRECTORY, 'markets.txt')
 
-DIGITS = Decimal('1e-8')
-
 # SQL parameters
 HOSTNAME = 'localhost'
 
@@ -95,7 +92,7 @@ AMOUNT_PER_CALL = 0
 
 SKIP_LIST = ['BTC-BCC', 'BTC-ETH', 'BTC-LSK', 'BTC-NEO', 'BTC-OMG', 'BTC-XRP', 'BTC-LTC']
 
-MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
+MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(BittrexConstants.DIGITS)
 
 # ==============================================================================
 # Set up queues and processes
@@ -122,6 +119,7 @@ manager = Process()
 # ==============================================================================
 # Helper functions
 # ==============================================================================
+
 
 def initialize_databases(database_name, markets, logger=None):
     """
@@ -187,6 +185,7 @@ def format_tradebot_entry(market, entry):
             ('profit', entry.get('profit')),
             ('percent', entry.get('percent'))]
 
+
 # TODO: refactor
 def close_positions(bittrex, wallet, logger=None):
     """
@@ -201,16 +200,16 @@ def close_positions(bittrex, wallet, logger=None):
         sell_total = wallet.get(market)
         if market != 'BTC' and sell_total > 0:
             try:
-                sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(DIGITS)
+                sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(BittrexConstants.DIGITS)
                 sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger=logger)
 
                 if sell_response.get('success'):
                     sell_result = sell_response.get('result')
 
                     sell_total = (Decimal(sell_result.get('Price')) -
-                                  Decimal(sell_result.get('CommissionPaid'))).quantize(DIGITS)
+                                  Decimal(sell_result.get('CommissionPaid'))).quantize(BittrexConstants.DIGITS)
 
-                    wallet['BTC'] = (wallet.get('BTC') + sell_total).quantize(DIGITS)
+                    wallet['BTC'] = (wallet.get('BTC') + sell_total).quantize(BittrexConstants.DIGITS)
                     logger.info('Tradebot: Successfully closed {}'.format(market))
 
             except (ConnectionError, RuntimeError) as e:
@@ -272,8 +271,8 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
     current_datetime = datetime.now().astimezone(tz=None)
     current_datetime = {k: current_datetime for k in MARKETS}
-    last_price = {k: Decimal(0).quantize(DIGITS) for k in MARKETS}
-    weighted_price = {k: Decimal(0).quantize(DIGITS) for k in MARKETS}
+    last_price = {k: Decimal(0).quantize(BittrexConstants.DIGITS) for k in MARKETS}
+    weighted_price = {k: Decimal(0).quantize(BittrexConstants.DIGITS) for k in MARKETS}
 
     try:
 
@@ -507,8 +506,10 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                             if order_response.get('success'):
                                 order_data = order_response.get('result')
 
-                                order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
-                                    order_data.get('Opened')))
+                                # First time getting order data
+                                if order.open_time is not None:
+                                    order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
+                                        order_data.get('Opened')))
 
                                 # Check if buy order has executed or passed open duration
                                 if not order_data.get('IsOpen') or \
@@ -518,26 +519,30 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                                     if order.current_quantity < order.target_quantity:
                                         cancel_response = bittrex.cancel(order.uuid)
 
-                                        if cancel_response.get('success'):
+                                        if not cancel_response.get('success'):
+                                            # TODO: add telegram message here
+                                            logger.info('Manager: Failed to cancel buy order for {}.'.format(market))
+                                            logger.info('Manager: May need to manually cancel order.')
+
+                                    order.add_completed_order(order_data)
 
                                     # TODO: integrate
-                                    # status['current_buy'] = {
-                                    #     'buy_price': Decimal(buy_result.get('PricePerUnit')).quantize(digits),
-                                    #     'buy_total': (Decimal(buy_result.get('Price')) +
-                                    #                   Decimal(buy_result.get('CommissionPaid'))).quantize(
-                                    #         digits),
-                                    #     'quantity': (Decimal(buy_result.get('Quantity')) -
-                                    #                  Decimal(buy_result.get('QuantityRemaining'))).quantize(
-                                    #         digits)}
-                                    #
-                                    # wallet['BTC'] = (wallet.get('BTC') - status.get('current_buy').get(
-                                    #     'buy_total')).quantize(digits)
-                                    # wallet[market] = (wallet.get(market) + status.get('current_buy').get(
-                                    #     'quantity')).quantize(digits)
-                                    #
-                                    # logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
-                                    # logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)),
-                                    #                                           market.split('-')[-1]))
+                                    status['current_buy'] = {
+                                        'buy_total': (Decimal(buy_result.get('Price')) +
+                                                      Decimal(buy_result.get('CommissionPaid'))).quantize(
+                                            digits),
+                                        'quantity': (Decimal(buy_result.get('Quantity')) -
+                                                     Decimal(buy_result.get('QuantityRemaining'))).quantize(
+                                            digits)}
+
+                                    wallet['BTC'] = (wallet.get('BTC') - status.get('current_buy').get(
+                                        'buy_total')).quantize(digits)
+                                    wallet[market] = (wallet.get(market) + status.get('current_buy').get(
+                                        'quantity')).quantize(digits)
+
+                                    logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
+                                    logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)),
+                                                                              market.split('-')[-1]))
 
                                     # TODO: add actions here for completed buy order
                                     active_orders.remove(order)
@@ -548,8 +553,14 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                         except (ConnectionError, ValueError) as e:
                             # Failed to get buy order data
-                            # TODO: add cancel order and telegram user - may need to manually sell
                             logger.debug('Manager: Failed to get buy order data for {}: {}.'.format(market, e))
+
+                            cancel_response = bittrex.cancel(order.uuid)
+
+                            if not cancel_response.get('success'):
+                                # TODO: add telegram message here
+                                logger.info('Manager: Failed to cancel buy order for {}.'.format(market))
+                                logger.info('Manager: May need to manually cancel order.')
 
                     # Buy order has not been executed
                     else:
@@ -573,7 +584,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                         # TODO: Change decimal value if buy orders are not getting filled
                         price_buffer = (((ask_price - bid_price) / bid_price) * Decimal('0.05')) + Decimal('1')
 
-                        buy_price = (price_buffer * bid_price).quantize(DIGITS)
+                        buy_price = (price_buffer * bid_price).quantize(BittrexConstants.DIGITS)
 
                         if buy_price > ask_price:
                             buy_price = bid_price
@@ -677,7 +688,7 @@ def _tradebot_set_wallet(amount):
     main_logger.info('Detected TRADEBOT: SET WALLET endpoint.')
 
     global WALLET_TOTAL
-    WALLET_TOTAL = Decimal(amount).quantize(DIGITS)
+    WALLET_TOTAL = Decimal(amount).quantize(BittrexConstants.DIGITS)
 
     message = 'Tradebot: Wallet total set successfully: {}'.format(str(WALLET_TOTAL))
     main_logger.info(message)
@@ -690,7 +701,7 @@ def _tradebot_set_call(amount):
     main_logger.info('Detected TRADEBOT: SET CALL endpoint.')
 
     global AMOUNT_PER_CALL
-    AMOUNT_PER_CALL = Decimal(amount).quantize(DIGITS)
+    AMOUNT_PER_CALL = Decimal(amount).quantize(BittrexConstants.DIGITS)
 
     message = 'Tradebot: Amount per call set successfully: {}'.format(str(AMOUNT_PER_CALL))
     main_logger.info(message)
