@@ -24,3 +24,11 @@ class BittrexStatus:
         self.buy_order = BittrexOrder(order_type=OrderType.BUY.name)
         self.sell_order = BittrexOrder(order_type=OrderType.SELL.name)
 
+    def clear_orders(self):
+        """
+        Reset buy and sell order
+        :return:
+        """
+        self.buy_order = BittrexOrder(order_type=OrderType.BUY.name)
+        self.sell_order = BittrexOrder(order_type=OrderType.SELL.name)
+

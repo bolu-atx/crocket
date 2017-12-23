@@ -7,16 +7,20 @@ class BittrexOrder:
                  price=0,
                  target_quantity=0,
                  current_quantity=0,
-                 execution_time=None,
-                 completed=False):
+                 open_time=None,
+                 closed_time=None,
+                 completed=False,
+                 uuid=None):
 
         self.market = market
         self.type = order_type
         self.price = price
         self.target_quantity = target_quantity
         self.current_quantity = current_quantity
-        self.execution_time = execution_time
+        self.open_time = open_time
+        self.closed_time = closed_time
         self.completed = completed
+        self.uuid = uuid
 
     @staticmethod
     def create(order):
