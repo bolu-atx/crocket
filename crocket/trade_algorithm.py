@@ -1,10 +1,11 @@
 from numpy import mean
 from decimal import Decimal
 
-from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
+from utilities.time import convert_bittrex_timestamp_to_datetime, utc_to_local
+from utilities.constants import OrderType
 
 
-def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
+def run_algorithm(data, status, buy_amount, bittrex, order_queue, logger,
                   duration=1,
                   price_lag_time=30,
                   price_lag_duration=5,
@@ -20,6 +21,7 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                   wait_time=14400,
                   digits=Decimal('1e-8')):
 
+    market = status.market
     time = data.get('datetime')
     buyvolume = data.get('buy_volume')
     sellvolume = data.get('sell_volume')
@@ -28,21 +30,14 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
     current_time = time[-1]
     current_price = wprice[-1]
 
-    last_buy_time_difference = (current_time - status.get('last_buy').get('start')).total_seconds()
+    last_buy_time_difference = (current_time - status.last_buy_time).total_seconds()
 
     # Action if haven't bought coin
-    if not status.get('bought'):
+    if not status.bought:
 
         # No action if purchased within time of last buy
         if last_buy_time_difference < wait_time:
-            return status, wallet
-
-        # No action if not enough to place buy order
-        if wallet.get('BTC') < buy_amount:
-            logger.info('Tradebot: Not enough in wallet to place buy order. Skipping.')
-            status['last_buy'] = {'start': current_time,
-                                  'buy_price': current_price}
-            return status, wallet
+            return
 
         sample_buy_volume_mean = mean(buyvolume[-duration:])
         buy_volume_lag_total = sum(buyvolume[-(duration + volume_lag_duration):-duration])
@@ -58,76 +53,54 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
             if sample_buy_volume_mean > 2 and \
                     abs((current_price - previous_price) / previous_price) < price_lag_threshold:
 
-                # TODO: get BTC in wallet available, if fails, continue - buy order will fail and bot resumes
-                # TODO: get orderbook of market, if fails, set default buy rate value and continue with buy order
-                buy_total = (buy_amount / current_price).quantize(digits)
-                buy_rate = (current_price * Decimal(1.1)).quantize(digits)
+                target_quantity = (buy_amount / current_price).quantize(digits)
 
-                try:
+                order_queue.put(
+                    {
+                        'market': market,
+                        'type': OrderType.BUY.name,
+                        'target_quantity': target_quantity,
+                        'base_quantity': buy_amount
+                    }
+                )
 
-                    buy_response = bittrex.buy_or_else(market, buy_total, buy_rate, logger=logger)
+                status.bought = True
+                status.buy_signal = current_price
 
-                    if buy_response.get('success'):
-                        buy_result = buy_response.get('result')
-
-                        status['bought'] = True
-                        status['current_buy'] = {'start': utc_to_local(convert_bittrex_timestamp_to_datetime(buy_result.get('Closed'))),
-                                                 'buy_signal': current_price,
-                                                 'buy_price': Decimal(buy_result.get('PricePerUnit')).quantize(digits),
-                                                 'buy_total': (Decimal(buy_result.get('Price')) +
-                                                              Decimal(buy_result.get('CommissionPaid'))).quantize(digits),
-                                                 'quantity': (Decimal(buy_result.get('Quantity')) -
-                                                              Decimal(buy_result.get('QuantityRemaining'))).quantize(digits)}
-
-                        wallet['BTC'] = (wallet.get('BTC') - status.get('current_buy').get('buy_total')).quantize(digits)
-                        wallet[market] = (wallet.get(market) + status.get('current_buy').get('quantity')).quantize(digits)
-
-                        logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
-                        logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)), market.split('-')[-1]))
-                    else:
-                        # Buy order reached max API retry limit, tradebot continues
-                        logger.info('Tradebot: Failed to buy {} @ {}'.format(market, current_time))
-
-                except (ConnectionError, RuntimeError) as e:
-                    # TODO: get open orders for specific market, and cancel open orders
-                    # TODO: Send a message to user to manually sell
-                    logger.info('Tradebot: Failed to buy {} @ {}: {}'.format(market, current_time, e))
-                    logger.info('ACTION: Manually sell {}.'.format(market))
-                finally:
-                    status['last_buy'] = {'start': current_time,
-                                          'buy_price': current_price}
+                status.last_buy_time = current_time
+                status.last_buy_price = current_price
 
     # Action if have bought coin
     else:
         current_buy = status.get('current_buy')
         current_buy_hold_time = (current_time - current_buy.get('start')).total_seconds()
 
-        if status.get('current_stop_gain_percent') == 0.02:
+        if status.stop_gain_percent == 0.02:
             loss_threshold = 0
         else:
             loss_threshold = 0.01
 
         current_stop_gain_threshold = (
-            current_buy.get('buy_price') * Decimal(status.get('current_stop_gain_percent') + 1)).quantize(digits)
+            current_buy.get('buy_price') * Decimal(status.stop_gain_percent + 1)).quantize(digits)
         current_stop_gain_min_threshold = (
-            current_buy.get('buy_price') * Decimal(status.get('current_stop_gain_percent') - loss_threshold + 1)).quantize(
+            current_buy.get('buy_price') * Decimal(status.stop_gain_percent - loss_threshold + 1)).quantize(
             digits)
 
         next_stop_gain_threshold = (current_buy.get('buy_price') * Decimal(
-            status.get('current_stop_gain_percent') + stop_gain_increment + 1)).quantize(digits)
+            status.stop_gain_percent + stop_gain_increment + 1)).quantize(digits)
 
         # Activate stop gain signal after passing threshold percentage
-        if not status.get('stop_gain') and current_price > current_stop_gain_threshold:
-            status['stop_gain'] = True
-        elif status.get('stop_gain') and current_price > next_stop_gain_threshold:
-            status['current_stop_gain_percent'] = status.get('current_stop_gain_percent') + stop_gain_increment
+        if not status.stop_gain and current_price > current_stop_gain_threshold:
+            status.stop_gain = True
+        elif status.stop_gain and current_price > next_stop_gain_threshold:
+            status.stop_gain_percent = status.stop_gain_percent + stop_gain_increment
 
         # Sell if hit stop loss
         # Sell after passing max hold time
         # Sell after detecting stop gain signal and price drop below stop gain price
         if (current_price < (current_buy.get('buy_signal') * Decimal(1 - stop_loss_percent)).quantize(digits)) or \
                 current_buy_hold_time > max_hold_time or \
-                (status.get('stop_gain') and current_price < current_stop_gain_min_threshold):
+                (status.stop_gain and current_price < current_stop_gain_min_threshold):
 
             # TODO: Ensure sell order sells everything in one order
             sell_total = status.get('current_buy').get('quantity')
@@ -166,8 +139,5 @@ def run_algorithm(market, data, status, wallet, buy_amount, bittrex, logger,
                 logger.info('Tradebot: Failed to sell {} @ {}: {}'.format(market, current_time, e))
                 logger.info('ACTION: Manually sell {} of {}.'.format(str(current_buy.get('quantity')), market))
             finally:
-                status['bought'] = False
-                status['stop_gain'] = False
-                status['maximize_gain'] = False
-
-    return status, wallet
+                status.bought = False
+                status.stop_gain = False

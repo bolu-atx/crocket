@@ -6,20 +6,24 @@ from json import load as json_load
 from requests.exceptions import ConnectionError
 from requests_futures.sessions import FuturesSession
 from logging import FileHandler, Formatter, StreamHandler, getLogger
-from multiprocessing import Process, Queue, Manager
+from multiprocessing import Process, Queue
 from os import environ
 from os.path import dirname, join, realpath
 from random import shuffle
 from time import sleep, time
 from traceback import format_exc
 
-from bittrex.bittrex2 import Bittrex, filter_bittrex_markets, format_bittrex_entry, return_request_input
+from bittrex.bittrex2 import Bittrex, format_bittrex_entry, return_request_input
+from bittrex.BittrexOrder import BittrexOrder
+from bittrex.BittrexStatus import BittrexStatus
+from bittrex.BittrexData import BittrexData
 from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
+from utilities.constants import OrderType
 from utilities.credentials import get_credentials
-from utilities.time import format_time
-
+from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
+from utilities.Wallet import Wallet
 
 # ==============================================================================
 # Initialize logger
@@ -55,7 +59,7 @@ PROXY_LIST_PATH = join(CROCKET_DIRECTORY, 'proxy_list.txt')
 
 MARKETS_LIST_PATH = join(CROCKET_DIRECTORY, 'markets.txt')
 
-DIGITS = Decimal(10) ** -8
+DIGITS = Decimal('1e-8')
 
 # SQL parameters
 HOSTNAME = 'localhost'
@@ -66,11 +70,9 @@ TRADEBOT_DATABASE = 'TRADEBOT_RECORD'
 
 app = Flask(__name__)
 
-
 # ==============================================================================
 # Load data
 # ==============================================================================
-
 
 # Load markets
 with open(MARKETS_LIST_PATH, 'r') as f:
@@ -83,7 +85,6 @@ with open(BITTREX_CREDENTIALS_PATH, 'r') as f:
 # Load proxies
 with open(PROXY_LIST_PATH, 'r') as f:
     PROXIES = f.read().splitlines()
-
 
 # ==============================================================================
 # Tradebot settings
@@ -100,22 +101,36 @@ MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(DIGITS)
 # Set up queues and processes
 # ==============================================================================
 
+# Queues to control starting and ending processes
 SCRAPER_QUEUE = Queue()
 TRADEBOT_QUEUE = Queue()
+MANAGER_QUEUE = Queue()
+
+# Queues to pass data between processes
 SCRAPER_TRADEBOT_QUEUE = Queue()
+ORDER_QUEUE = Queue()
+COMPLETED_ORDER_QUEUE = Queue()
 # TRADEBOT_TELEGRAM_QUEUE = Queue()
 # TELEGRAM_TRADEBOT_QUEUE = Queue()
 
+# Initialization of global processes
 scraper = Process()
 tradebot = Process()
+manager = Process()
 # telegram = Process()
 
 # ==============================================================================
 # Helper functions
 # ==============================================================================
 
-
 def initialize_databases(database_name, markets, logger=None):
+    """
+    Create new database for data collection and new table for trades
+    :param database_name:
+    :param markets:
+    :param logger:
+    :return:
+    """
 
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
@@ -153,6 +168,12 @@ def initialize_databases(database_name, markets, logger=None):
 
 
 def format_tradebot_entry(market, entry):
+    """
+    Format trade entry for insertion into trade table
+    :param market:
+    :param entry:
+    :return:
+    """
 
     return [('market', market),
             ('buy_time', entry.get('start')),
@@ -166,9 +187,15 @@ def format_tradebot_entry(market, entry):
             ('profit', entry.get('profit')),
             ('percent', entry.get('percent'))]
 
-
+# TODO: refactor
 def close_positions(bittrex, wallet, logger=None):
-
+    """
+    Close all open positions
+    :param bittrex:
+    :param wallet:
+    :param logger:
+    :return:
+    """
     for market in wallet:
 
         sell_total = wallet.get(market)
@@ -178,7 +205,6 @@ def close_positions(bittrex, wallet, logger=None):
                 sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger=logger)
 
                 if sell_response.get('success'):
-
                     sell_result = sell_response.get('result')
 
                     sell_total = (Decimal(sell_result.get('Price')) -
@@ -196,6 +222,11 @@ def close_positions(bittrex, wallet, logger=None):
 
 
 def shutdown_server():
+    """
+    Shutdown the server
+    :return:
+    """
+
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
         raise RuntimeError('Not running with the Werkzeug Server')
@@ -206,10 +237,18 @@ def shutdown_server():
 # Run functions
 # ==============================================================================
 
-
 def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                 interval=60, sleep_time=5):
-
+    """
+    Run scraper to pull data from Bittrex
+    :param control_queue:
+    :param database_name:
+    :param logger:
+    :param markets:
+    :param interval:
+    :param sleep_time:
+    :return:
+    """
     # Initialize database object
     initialize_databases(database_name, markets, logger=logger)
 
@@ -294,33 +333,33 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
         logger.info("Scraper: Database connection closed.")
 
 
-def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_call, table_name, logger, skip_list):
+def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order_queue,
+                 markets, amount_per_call, table_name, logger, skip_list):
+    """
+    Run trading algorithm on real-time market data
+    :param pending_order_queue: Queue to pass orders to manager
+    :param completed_order_queue: Queue to recieve completed orders from manager
+    :param control_queue: Queue to control tradebot
+    :param data_queue: Queue to receive data from scraper
+    :param markets: List of markets
+    :param amount_per_call: Amount to purchase per buy order
+    :param table_name: Name of SQL table to record data
+    :param logger: Main logger
+    :param skip_list: List of markets to skip
+    :return:
+    """
 
-    running_data = {}
-    running_status = {}
-    wallet = {'BTC': wallet_total}
-
-    bought_time = datetime(2017, 11, 11, 11, 11).astimezone(tz=None)
-
-    last_buy = {'start': bought_time,
-                'buy_price': 0}
+    market_data = {}
+    market_status = {}
+    completed_orders = []
 
     for market in markets:
 
         if market not in skip_list:
-            running_status[market] = {'bought': False,
-                                      'last_buy': last_buy,
-                                      'current_buy': {},
-                                      'stop_gain': False,
-                                      'current_stop_gain_percent': 0.02}
+            market_status[market] = BittrexStatus(market=market)
+            market_data[market] = BittrexData(market=market)
 
-            running_data[market] = {'datetime': [],
-                                    'wprice': [],
-                                    'buy_volume': [],
-                                    'sell_volume': []}
-
-            wallet[market] = Decimal(0).quantize(DIGITS)
-
+    # Initialize SQL database connection
     db = Database(hostname=HOSTNAME,
                   username=USERNAME,
                   password=PASSCODE,
@@ -335,60 +374,68 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
     try:
         while True:
 
+            # Receive data from scraper
             scraper_data = data_queue.get()
 
+            # Add received scraper data from running data
             for market, entry in scraper_data.items():
 
                 if market not in skip_list:
                     if entry.get('wprice') > 0:  # Temporary fix for entries with 0 price
-                        running_data[market]['datetime'].append(entry.get('datetime'))
-                        running_data[market]['wprice'].append(entry.get('wprice'))
-                        running_data[market]['buy_volume'].append(entry.get('buy_volume'))
-                        running_data[market]['sell_volume'].append(entry.get('sell_volume'))
+                        market_data[market].datetime.append(entry.get('datetime'))
+                        market_data[market].wprice.append(entry.get('wprice'))
+                        market_data[market].buy_volume.append(entry.get('buy_volume'))
+                        market_data[market].sell_volume.append(entry.get('sell_volume'))
+
+            # Check if any orders completed
+            if not completed_order_queue.empty():
+
+                while not completed_order_queue.empty():
+                    completed_order = BittrexOrder.create(completed_order_queue.get())
+
+                    completed_orders.append(completed_order)
+
+                # Update market statuses with completed orders
+                for order in completed_orders:
+
+                    order_market = order.market
+                    if order.type == OrderType.BUY.name:
+                        market_status[order_market].buy_order = order
+                    else:
+                        market_status[order_market].sell_order = order
+
+                completed_orders.clear()
 
             for market in scraper_data.keys():
 
                 if market not in skip_list:
-                    if len(running_data.get(market).get('datetime')) > 65:
+                    if len(market_data.get(market).datetime) > 65:
 
-                        del running_data[market]['datetime'][0]
-                        del running_data[market]['wprice'][0]
-                        del running_data[market]['buy_volume'][0]
-                        del running_data[market]['sell_volume'][0]
+                        # Clear the first entries
+                        market_data[market].clear_first()
 
-                        try:
-                            running_status[market], wallet = run_algorithm(market,
-                                                                           running_data.get(market),
-                                                                           running_status.get(market),
-                                                                           wallet,
-                                                                           amount_per_call,
-                                                                           bittrex,
-                                                                           logger)
-                        except Exception:
-                            logger.error('Tradebot: ERROR during run algorithm.')
-                            error_message = format_exc()
-                            logger.error(error_message)
+                        status = market_status.get(market)
 
-                            raise RuntimeError('Error from algorithm')
+                        # TODO: format orders and send to order manager
+                        run_algorithm(market_data.get(market),
+                                      status,
+                                      amount_per_call,
+                                      bittrex,
+                                      pending_order_queue,
+                                      logger)
 
-                        try:
-                            completed_buy = running_status.get(market).get('current_buy')
+                        # Completed buy and sell order for single market
+                        # TODO: Update completed_buy formatting
+                        if status.buy_order.completed and status.sell_order.completed:
+                            completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
+                            completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
-                            if completed_buy and completed_buy.get('profit'):
-                                completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
-                                completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
+                            logger.info('Tradebot: completed buy/sell order for {}.'.format(market), completed_buy)
 
-                                logger.info('Tradebot: completed order.', completed_buy)
+                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
 
-                                db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
-                                running_status[market]['current_buy'] = {}
-
-                        except Exception:
-                            logger.error('Tradebot: ERROR formatting completed order data.')
-                            error_message = format_exc()
-                            logger.error(error_message)
-
-                            raise RuntimeError('Error from getting completed order data.')
+                            # Reset buy and sell orders
+                            status.clear_orders()
 
             if not control_queue.empty():
 
@@ -398,13 +445,181 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
                     logger.info('Tradebot: Stopping tradebot ...')
                     break
 
-    except (ConnectionError, RuntimeError) as e:
+    except (ConnectionError, ValueError) as e:
         logger.error(e)
         logger.info('Tradebot: Stopping tradebot ...')
     finally:
         db.close()
-        # TODO: check if any open orders
 
+        logger.info('Tradebot: Stopped tradebot.')
+        logger.info('Tradebot: Database connection closed.')
+
+
+def run_manager(order_queue, completed_queue, wallet_total, logger,
+                sleep_time=5):
+    """
+    Handles execution of all orders
+    :param order_queue: Queue receiving orders
+    :param completed_queue: Queue sending completed orders
+    :param logger: Main logger
+    :param sleep_time: Duration between polling
+    :return:
+    """
+
+    new_orders = []
+    active_orders = []
+
+    # Initialize Wallet
+    wallet = Wallet(amount=wallet_total)
+
+    # Initialize Bittrex object
+    bittrex = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
+                      api_secret=BITTREX_CREDENTIALS.get('secret'),
+                      api_version='v1.1')
+
+    try:
+        while True:
+
+            # Check if any orders to be executed
+            if not order_queue.empty():
+
+                while not order_queue.empty():
+                    new_order = BittrexOrder.create(order_queue.get())
+
+                    new_orders.append(new_order)
+
+            start = time()
+
+            active_orders += new_orders
+
+            for order in active_orders:
+
+                market = order.get('market')
+
+                # Actions for buy order
+                if order.type == OrderType.BUY.name:
+
+                    # Check status of buy order if executed
+                    if order.uuid is not None:
+                        try:
+                            order_response = bittrex.get_order(order.uuid)
+
+                            if order_response.get('success'):
+                                order_data = order_response.get('result')
+
+                                order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
+                                    order_data.get('Opened')))
+
+                                # Check if buy order has executed or passed open duration
+                                if not order_data.get('IsOpen') or \
+                                        (datetime.now().astimezone(tz=None) - order.open_time).total_seconds() > 60:
+
+                                    # Buy order is not complete - cancel order
+                                    if order.current_quantity < order.target_quantity:
+                                        cancel_response = bittrex.cancel(order.uuid)
+
+                                        if cancel_response.get('success'):
+
+                                    # TODO: integrate
+                                    # status['current_buy'] = {
+                                    #     'buy_price': Decimal(buy_result.get('PricePerUnit')).quantize(digits),
+                                    #     'buy_total': (Decimal(buy_result.get('Price')) +
+                                    #                   Decimal(buy_result.get('CommissionPaid'))).quantize(
+                                    #         digits),
+                                    #     'quantity': (Decimal(buy_result.get('Quantity')) -
+                                    #                  Decimal(buy_result.get('QuantityRemaining'))).quantize(
+                                    #         digits)}
+                                    #
+                                    # wallet['BTC'] = (wallet.get('BTC') - status.get('current_buy').get(
+                                    #     'buy_total')).quantize(digits)
+                                    # wallet[market] = (wallet.get(market) + status.get('current_buy').get(
+                                    #     'quantity')).quantize(digits)
+                                    #
+                                    # logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
+                                    # logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)),
+                                    #                                           market.split('-')[-1]))
+
+                                    # TODO: add actions here for completed buy order
+                                    active_orders.remove(order)
+                                    completed_queue.put(order)
+
+                            else:
+                                raise ValueError('Manager: Get buy order data API call failed.')
+
+                        except (ConnectionError, ValueError) as e:
+                            # Failed to get buy order data
+                            # TODO: add cancel order and telegram user - may need to manually sell
+                            logger.debug('Manager: Failed to get buy order data for {}: {}.'.format(market, e))
+
+                    # Buy order has not been executed
+                    else:
+
+                        try:
+                            ticker = bittrex.get_ticker(market)
+
+                            if not ticker.get('success'):
+                                raise ValueError('Manager: Get ticker API call failed.')
+
+                        except (ConnectionError, ValueError) as e:
+                            # Failed to get price
+                            logger.debug('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
+                                e, market))
+                            # TODO: action - skip
+                            continue
+
+                        bid_price = Decimal(str(ticker.get('Bid')))
+                        ask_price = Decimal(str(ticker.get('Ask')))
+
+                        # TODO: Change decimal value if buy orders are not getting filled
+                        price_buffer = (((ask_price - bid_price) / bid_price) * Decimal('0.05')) + Decimal('1')
+
+                        buy_price = (price_buffer * bid_price).quantize(DIGITS)
+
+                        if buy_price > ask_price:
+                            buy_price = bid_price
+
+                        order.price = buy_price
+
+                        # No action if not enough to place buy order
+                        if wallet.get_quantity('BTC') < order.base_quantity:
+                            logger.info('Manager: Not enough in wallet to place buy order. Skipping {}.'.format(market))
+                            # TODO: action - skip
+
+                        try:
+                            buy_response = bittrex.buy_limit(market, order.target_quantity, order.price)
+
+                            if buy_response.get('success'):
+                                order.uuid = buy_response.get('result').get('uuid')
+                            else:
+                                logger.info('Manager: Failed to buy {}.'.format(market))
+                                raise ValueError('Manager: Execute buy order API call failed.')
+
+                        except (ConnectionError, ValueError) as e:
+                            # Failed to execute buy order
+                            logger.debug(
+                                'Manager: Failed to execute buy order for {}: {}. Skipping buy order.'.format(
+                                    market, e
+                                ))
+                            # TODO: action - skip
+                            continue
+
+                # Actions for sell order
+                else:
+                    print(2)
+
+                    sleep(1)
+
+            stop = time()
+            run_time = stop - start
+
+            if run_time < sleep_time:
+                sleep(sleep_time - run_time)
+
+    except ConnectionError as e:
+        logger.debug('ConnectionError: {}. Exiting ...'.format(e))
+    finally:
+        # TODO: check if any open orders
+        # TODO: refactor based on wallet class
         if any(k for k in wallet if wallet.get(k) > 0 and k != 'BTC'):
             logger.info('Tradebot: Open positions remaining.')
             logger.info('Tradebot: Closing open positions.')
@@ -413,39 +628,11 @@ def run_tradebot(control_queue, data_queue, markets, wallet_total, amount_per_ca
             logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
             logger.info('Tradebot: No positions open. Safe to exit.')
 
-        logger.info('Tradebot: Stopped tradebot.')
-        logger.info('Tradebot: Database connection closed.')
-
-
-# def run_manager(order_queue, status_queue):
-#
-#     manager = OrderManager()
-#
-#     while True:
-#
-#         order_data = order_queue.get()
-#
-#         manager.execute_order(order_data)
-#         manager.add_order(order_data)
-#
-#         while manager.open_orders:
-#
-#             # get order data
-#             # if order is completed
-#
-#             if not order_queue.empty():
-#
-#                 break
-#
-#             sleep(1)
-#
-
-
+        logger.info('Manager: Stopped manager.')
 
 
 # TODO: implement telegram bot
 def run_telegram(from_tradebot_queue, to_tradebot_queue):
-
     while True:
 
         order_data = from_tradebot_queue.get()
@@ -466,7 +653,6 @@ def run_telegram(from_tradebot_queue, to_tradebot_queue):
 
 @app.route('/scraper/start/<database_name>', methods=['GET'])
 def _scraper_start(database_name):
-
     main_logger.info('Detected SCRAPER: START endpoint.')
     main_logger.info('Starting scraper using database: {}.'.format(database_name))
 
@@ -479,7 +665,6 @@ def _scraper_start(database_name):
 
 @app.route('/scraper/stop', methods=['GET'])
 def _scraper_stop():
-
     main_logger.info('Detected SCRAPER: STOP endpoint.')
 
     SCRAPER_QUEUE.put("STOP")
@@ -489,7 +674,6 @@ def _scraper_stop():
 
 @app.route('/tradebot/set/wallet/<float:amount>', methods=['GET'])
 def _tradebot_set_wallet(amount):
-
     main_logger.info('Detected TRADEBOT: SET WALLET endpoint.')
 
     global WALLET_TOTAL
@@ -503,7 +687,6 @@ def _tradebot_set_wallet(amount):
 
 @app.route('/tradebot/set/call/<float:amount>', methods=['GET'])
 def _tradebot_set_call(amount):
-
     main_logger.info('Detected TRADEBOT: SET CALL endpoint.')
 
     global AMOUNT_PER_CALL
@@ -517,8 +700,7 @@ def _tradebot_set_call(amount):
 
 @app.route('/tradebot/start/<table_name>', methods=['GET'])
 def _tradebot_start(table_name):
-
-    main_logger.info('Detected TRADEBOT: START endpoint.')
+    main_logger.info('Crocket: Detected tradebot START endpoint.')
 
     SCRAPER_QUEUE.put('START TRADEBOT')
 
@@ -536,23 +718,29 @@ def _tradebot_start(table_name):
 
     global tradebot
     tradebot = Process(target=run_tradebot,
-                       args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, MARKETS,
-                             WALLET_TOTAL, AMOUNT_PER_CALL, table_name, main_logger, SKIP_LIST))
+                       args=(TRADEBOT_QUEUE, SCRAPER_TRADEBOT_QUEUE, ORDER_QUEUE, COMPLETED_ORDER_QUEUE,
+                             MARKETS, AMOUNT_PER_CALL, table_name, main_logger, SKIP_LIST))
     tradebot.start()
 
-    return jsonify('Tradebot: Started successfully. Wallet total: {}. Amount per call: {}'.format(
+    global manager
+    manager = Process(target=run_manager,
+                      args=())  # TODO add arguments here
+    manager.start()
+
+    return jsonify("Tradebot: Started successfully. Wallet total: {}. Amount per call: {}".format(
         str(WALLET_TOTAL), str(AMOUNT_PER_CALL))), 200
 
 
 @app.route('/tradebot/stop', methods=['GET'])
 def _tradebot_stop():
-
-    main_logger.info('Detected TRADEBOT: STOP endpoint.')
+    main_logger.info("Crocket: Detected tradebot STOP endpoint.")
 
     SCRAPER_QUEUE.put('STOP TRADEBOT')
-    TRADEBOT_QUEUE.put("STOP")
+    TRADEBOT_QUEUE.put('STOP')
+    MANAGER_QUEUE.put('STOP')
 
     tradebot.join()
+    manager.join()
 
     return jsonify("STOPPED TRADEBOT"), 200
 
@@ -560,7 +748,6 @@ def _tradebot_stop():
 # TODO: Implement check that scraper and tradebot have successfully exited
 @app.route('/shutdown', methods=['POST'])
 def _shutdown():
-
     main_logger.info('Detected SHUTDOWN endpoint.')
 
     shutdown_server()
