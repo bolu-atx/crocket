@@ -24,6 +24,9 @@ class BittrexStatus:
         self.buy_order = BittrexOrder(order_type=OrderType.BUY.name)
         self.sell_order = BittrexOrder(order_type=OrderType.SELL.name)
 
+        self.buy_signal = None
+        self.sell_signal = None
+
     def clear_orders(self):
         """
         Reset buy and sell order
