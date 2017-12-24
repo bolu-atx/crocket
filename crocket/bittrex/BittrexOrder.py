@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from utilities.constants import BittrexConstants
+from utilities.constants import BittrexConstants, OrderStatus
 from utilities.time import convert_bittrex_timestamp_to_datetime, utc_to_local
 
 
@@ -16,7 +16,7 @@ class BittrexOrder:
                  current_quantity=0,
                  open_time=None,
                  closed_time=None,
-                 completed=False,
+                 status=OrderStatus.UNEXECUTED.name,
                  uuid=None,
                  actual_price=0,
                  cost=0):
@@ -27,7 +27,7 @@ class BittrexOrder:
         self.target_quantity = target_quantity
         self.base_quantity = base_quantity
         self.current_quantity = current_quantity
-        self.completed = completed
+        self.status = status
 
         # Order information from Bittrex API
         self.uuid = uuid
@@ -83,6 +83,7 @@ class BittrexOrder:
         :return:
         """
 
+        self.status = OrderStatus.COMPLETED.name
         self.actual_price = Decimal(order.get('PricePerUnit')).quantize(BittrexConstants.DIGITS)
 
         try:
@@ -103,3 +104,21 @@ class BittrexOrder:
         elif order_type == 'LIMIT_SELL':
             self.cost = (Decimal(order.get('Price')) - Decimal(order.get('CommissionPaid'))).quantize(
                 BittrexConstants.DIGITS)
+
+    def update_uuid(self, uuid):
+        """
+        Update order UUID
+        :param uuid:
+        :return:
+        """
+
+        self.uuid = uuid
+
+    def update_status(self, status):
+        """
+        Update order status
+        :param status:
+        :return:
+        """
+
+        self.status = status

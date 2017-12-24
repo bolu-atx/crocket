@@ -15,7 +15,6 @@ class Wallet:
         self._currencies = {
             'BTC': {
                 'quantity': amount,
-                'base_quantity': amount
             }}
 
         if isinstance(markets, list):
@@ -59,4 +58,6 @@ class Wallet:
         :return:
         """
 
-        # TODO: finish
+        self._currencies['BTC']['quantity'] += base_quantity
+        self._currencies[market]['quantity'] += quantity
+        self._currencies[market]['base_quantity'] += base_quantity

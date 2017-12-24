@@ -19,7 +19,7 @@ from bittrex.BittrexData import BittrexData
 from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
-from utilities.constants import BittrexConstants, OrderType
+from utilities.constants import BittrexConstants, OrderStatus, OrderType
 from utilities.credentials import get_credentials
 from utilities.time import convert_bittrex_timestamp_to_datetime, format_time, utc_to_local
 from utilities.Wallet import Wallet
@@ -218,6 +218,20 @@ def close_positions(bittrex, wallet, logger=None):
                     logger.info('ACTION: Manually close {}.'.format(market))
 
     logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
+
+
+def skip_order(order, order_list, out_queue):
+    """
+    Skip current order
+    :param order: Current order
+    :param order_list: Active orders
+    :param out_queue: Queue of completed orders
+    :return:
+    """
+
+    order.update_status(OrderStatus.SKIPPED.name)
+    order_list.remove(order)
+    out_queue.put(order)
 
 
 def shutdown_server():
@@ -460,6 +474,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
     Handles execution of all orders
     :param order_queue: Queue receiving orders
     :param completed_queue: Queue sending completed orders
+    :param wallet_total: Amount in wallet available
     :param logger: Main logger
     :param sleep_time: Duration between polling
     :return:
@@ -499,7 +514,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                 if order.type == OrderType.BUY.name:
 
                     # Check status of buy order if executed
-                    if order.uuid is not None:
+                    if order.status == OrderStatus.UNEXECUTED.name:
                         try:
                             order_response = bittrex.get_order(order.uuid)
 
@@ -521,30 +536,17 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                                         if not cancel_response.get('success'):
                                             # TODO: add telegram message here
-                                            logger.info('Manager: Failed to cancel buy order for {}.'.format(market))
-                                            logger.info('Manager: May need to manually cancel order.')
+                                            logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
+                                            logger.error('Manager: May need to manually cancel order.')
 
                                     order.add_completed_order(order_data)
 
-                                    # TODO: integrate
-                                    status['current_buy'] = {
-                                        'buy_total': (Decimal(buy_result.get('Price')) +
-                                                      Decimal(buy_result.get('CommissionPaid'))).quantize(
-                                            digits),
-                                        'quantity': (Decimal(buy_result.get('Quantity')) -
-                                                     Decimal(buy_result.get('QuantityRemaining'))).quantize(
-                                            digits)}
+                                    wallet.update_wallet(market, order.current_quantity, order.cost)
 
-                                    wallet['BTC'] = (wallet.get('BTC') - status.get('current_buy').get(
-                                        'buy_total')).quantize(digits)
-                                    wallet[market] = (wallet.get(market) + status.get('current_buy').get(
-                                        'quantity')).quantize(digits)
-
-                                    logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get('BTC'))))
-                                    logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get(market)),
+                                    logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
+                                    logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
                                                                               market.split('-')[-1]))
 
-                                    # TODO: add actions here for completed buy order
                                     active_orders.remove(order)
                                     completed_queue.put(order)
 
@@ -552,15 +554,18 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                                 raise ValueError('Manager: Get buy order data API call failed.')
 
                         except (ConnectionError, ValueError) as e:
-                            # Failed to get buy order data
+
+                            # Failed to get buy order data - SKIP current order
                             logger.debug('Manager: Failed to get buy order data for {}: {}.'.format(market, e))
 
                             cancel_response = bittrex.cancel(order.uuid)
 
                             if not cancel_response.get('success'):
                                 # TODO: add telegram message here
-                                logger.info('Manager: Failed to cancel buy order for {}.'.format(market))
-                                logger.info('Manager: May need to manually cancel order.')
+                                logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
+                                logger.error('Manager: May need to manually cancel order.')
+
+                            skip_order(order, active_orders, completed_queue)
 
                     # Buy order has not been executed
                     else:
@@ -572,10 +577,12 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                                 raise ValueError('Manager: Get ticker API call failed.')
 
                         except (ConnectionError, ValueError) as e:
-                            # Failed to get price
+
+                            # Failed to get price - SKIP current order
                             logger.debug('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
                                 e, market))
-                            # TODO: action - skip
+
+                            skip_order(order, active_orders, completed_queue)
                             continue
 
                         bid_price = Decimal(str(ticker.get('Bid')))
@@ -591,27 +598,31 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                         order.price = buy_price
 
-                        # No action if not enough to place buy order
+                        # No action if not enough to place buy order - SKIP current order
                         if wallet.get_quantity('BTC') < order.base_quantity:
+
                             logger.info('Manager: Not enough in wallet to place buy order. Skipping {}.'.format(market))
-                            # TODO: action - skip
+
+                            skip_order(order, active_orders, completed_queue)
 
                         try:
                             buy_response = bittrex.buy_limit(market, order.target_quantity, order.price)
 
                             if buy_response.get('success'):
-                                order.uuid = buy_response.get('result').get('uuid')
+                                order.update_uuid(buy_response.get('result').get('uuid'))
                             else:
                                 logger.info('Manager: Failed to buy {}.'.format(market))
                                 raise ValueError('Manager: Execute buy order API call failed.')
 
                         except (ConnectionError, ValueError) as e:
-                            # Failed to execute buy order
+
+                            # Failed to execute buy order - SKIP current order
                             logger.debug(
                                 'Manager: Failed to execute buy order for {}: {}. Skipping buy order.'.format(
                                     market, e
                                 ))
-                            # TODO: action - skip
+
+                            skip_order(order, active_orders, completed_queue)
                             continue
 
                 # Actions for sell order
