@@ -114,6 +114,8 @@ COMPLETED_ORDER_QUEUE = Queue()
 scraper = Process()
 tradebot = Process()
 manager = Process()
+
+
 # telegram = Process()
 
 # ==============================================================================
@@ -514,7 +516,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                 if order.type == OrderType.BUY.name:
 
                     # Check status of buy order if executed
-                    if order.status == OrderStatus.UNEXECUTED.name:
+                    if order.status == OrderStatus.EXECUTED.name:
                         try:
                             order_response = bittrex.get_order(order.uuid)
 
@@ -540,7 +542,6 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                                             logger.error('Manager: May need to manually cancel order.')
 
                                     order.add_completed_order(order_data)
-
                                     wallet.update_wallet(market, order.current_quantity, order.cost)
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
@@ -581,7 +582,6 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                             # Failed to get price - SKIP current order
                             logger.debug('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
                                 e, market))
-
                             skip_order(order, active_orders, completed_queue)
                             continue
 
@@ -596,20 +596,19 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                         if buy_price > ask_price:
                             buy_price = bid_price
 
-                        order.price = buy_price
+                        order.update_target_price(buy_price)
 
                         # No action if not enough to place buy order - SKIP current order
                         if wallet.get_quantity('BTC') < order.base_quantity:
-
                             logger.info('Manager: Not enough in wallet to place buy order. Skipping {}.'.format(market))
-
                             skip_order(order, active_orders, completed_queue)
 
                         try:
-                            buy_response = bittrex.buy_limit(market, order.target_quantity, order.price)
+                            buy_response = bittrex.buy_limit(market, order.target_quantity, order.target_price)
 
                             if buy_response.get('success'):
                                 order.update_uuid(buy_response.get('result').get('uuid'))
+                                order.update_status(OrderStatus.EXECUTED.name)
                             else:
                                 logger.info('Manager: Failed to buy {}.'.format(market))
                                 raise ValueError('Manager: Execute buy order API call failed.')

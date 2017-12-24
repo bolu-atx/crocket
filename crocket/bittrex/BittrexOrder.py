@@ -122,3 +122,12 @@ class BittrexOrder:
         """
 
         self.status = status
+
+    def update_target_price(self, price):
+        """
+        Update target price
+        :param price:
+        :return:
+        """
+
+        self.target_price = price
