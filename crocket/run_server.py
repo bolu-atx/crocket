@@ -16,6 +16,7 @@ from bittrex.bittrex2 import Bittrex, format_bittrex_entry, return_request_input
 from bittrex.BittrexOrder import BittrexOrder
 from bittrex.BittrexStatus import BittrexStatus
 from bittrex.BittrexData import BittrexData
+from manager_helper import skip_order
 from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
@@ -222,20 +223,6 @@ def close_positions(bittrex, wallet, logger=None):
     logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
 
 
-def skip_order(order, order_list, out_queue):
-    """
-    Skip current order
-    :param order: Current order
-    :param order_list: Active orders
-    :param out_queue: Queue of completed orders
-    :return:
-    """
-
-    order.update_status(OrderStatus.SKIPPED.name)
-    order_list.remove(order)
-    out_queue.put(order)
-
-
 def shutdown_server():
     """
     Shutdown the server
@@ -334,7 +321,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Tradebot: Total time: {}'.format(str(run_time)))
+                logger.info('Tradebot: Total time: {0:.2f}s'.format(run_time))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -415,7 +402,12 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
 
                     order_market = order.market
                     if order.type == OrderType.BUY.name:
-                        market_status[order_market].buy_order = order
+
+                        # Check if buy order skipped
+                        if order.status == OrderStatus.SKIPPED.name:
+                            market_status[order_market].set_buy_status(False)
+                        else:
+                            market_status[order_market].buy_order = order
                     else:
                         market_status[order_market].sell_order = order
 
@@ -431,17 +423,17 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
 
                         status = market_status.get(market)
 
-                        # TODO: format orders and send to order manager
                         run_algorithm(market_data.get(market),
                                       status,
                                       amount_per_call,
-                                      bittrex,
                                       pending_order_queue,
                                       logger)
 
                         # Completed buy and sell order for single market
                         # TODO: Update completed_buy formatting
                         if status.buy_order.completed and status.sell_order.completed:
+                            # PROFIT = (SELL_TOTAL - BUY_TOTAL).QUANTIZE(DIGITS)
+                            #status['current_buy']['percent'] = (profit * Decimal(100) / buy_total).quantize(Decimal(10) ** -4)
                             completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
                             completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
 
@@ -505,12 +497,11 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                     new_orders.append(new_order)
 
             start = time()
-
             active_orders += new_orders
 
             for order in active_orders:
 
-                market = order.get('market')
+                market = order.market
 
                 # Actions for buy order
                 if order.type == OrderType.BUY.name:
@@ -530,7 +521,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                                 # Check if buy order has executed or passed open duration
                                 if not order_data.get('IsOpen') or \
-                                        (datetime.now().astimezone(tz=None) - order.open_time).total_seconds() > 60:
+                                        (datetime.now().astimezone(tz=None) - order.open_time).total_seconds() > 50:
 
                                     # Buy order is not complete - cancel order
                                     if order.current_quantity < order.target_quantity:
@@ -542,7 +533,15 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                                             logger.error('Manager: May need to manually cancel order.')
 
                                     order.add_completed_order(order_data)
-                                    wallet.update_wallet(market, order.current_quantity, order.cost)
+
+                                    # Check if none of buy order filled
+                                    if order.current_quantity == 0:
+                                        logger.info('Manager: {} buy order not filled - canceled and skipped.'.format(
+                                            market))
+                                        skip_order(order, active_orders, completed_queue)
+                                        continue
+
+                                    wallet.update_wallet(market, order.current_quantity, order.total)
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
                                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
@@ -572,10 +571,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                     else:
 
                         try:
-                            ticker = bittrex.get_ticker(market)
-
-                            if not ticker.get('success'):
-                                raise ValueError('Manager: Get ticker API call failed.')
+                            ticker = bittrex.get_ticker_or_else(market)
 
                         except (ConnectionError, ValueError) as e:
 
@@ -626,12 +622,114 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                 # Actions for sell order
                 else:
-                    print(2)
+                    if order.status == OrderStatus.EXECUTED.name:
+                        try:
+                            order_response = bittrex.get_order(order.uuid)
 
-                    sleep(1)
+                            if order_response.get('success'):
+                                order_data = order_response.get('result')
+
+                                # First time getting order data
+                                if order.open_time is not None:
+                                    order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
+                                        order_data.get('Opened')))
+
+                                # Check if sell order has executed or passed open duration
+                                if not order_data.get('IsOpen') or \
+                                        (datetime.now().astimezone(tz=None) - order.open_time).total_seconds() > 50:
+
+                                    # Buy order is not complete - cancel order
+                                    if order.current_quantity < order.target_quantity:
+                                        cancel_response = bittrex.cancel(order.uuid)
+
+                                        if not cancel_response.get('success'):
+                                            # TODO: add telegram message here
+                                            logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
+                                            logger.error('Manager: May need to manually cancel order.')
+
+                                    order.add_completed_order(order_data)
+                                    wallet.update_wallet(market, -1 * order.current_quantity, -1 * order.total)
+
+                                    logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
+                                    logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
+                                                                              market.split('-')[-1]))
+
+                                    active_orders.remove(order)
+                                    completed_queue.put(order)
+
+                            else:
+                                raise ValueError('Manager: Get buy order data API call failed.')
+
+                        except (ConnectionError, ValueError) as e:
+
+                            # Failed to get buy order data - SKIP current order
+                            logger.debug('Manager: Failed to get buy order data for {}: {}.'.format(market, e))
+
+                            cancel_response = bittrex.cancel(order.uuid)
+
+                            if not cancel_response.get('success'):
+                                # TODO: send telegram message
+                                logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
+                                logger.error('Manager: May need to manually cancel order.')
+
+                            skip_order(order, active_orders, completed_queue)
+
+                    # Sell order has not been executed
+                    else:
+
+                        try:
+                            ticker = bittrex.get_ticker_or_else(market)
+
+                        except (ConnectionError, ValueError) as e:
+
+                            # Failed to get price - SKIP current order
+                            logger.error('Manager: Failed to get price for {}: {}. ACTION: Manually sell.'.format(
+                                e, market))
+                            # TODO: send telegram message
+                            continue
+
+                        bid_price = Decimal(str(ticker.get('Bid')))
+                        ask_price = Decimal(str(ticker.get('Ask')))
+
+                        # TODO: Change decimal value if sell orders are not getting filled
+                        price_buffer = (((ask_price - bid_price) / bid_price) * Decimal('0.05')) + Decimal('1')
+
+                        sell_price = (price_buffer * bid_price).quantize(BittrexConstants.DIGITS)
+
+                        if sell_price < bid_price:
+                            sell_price = ask_price
+
+                        order.update_target_price(sell_price)
+
+                        # No action if nothing available for sell order - SKIP current order
+                        if wallet.get_quantity(market) == 0:
+                            logger.info('Manager: Not enough in wallet to place sell order. Skipping {}.'.format(market))
+                            skip_order(order, active_orders, completed_queue)
+
+                        try:
+                            sell_response = bittrex.sell_limit(market, wallet.get_quantity(market), order.target_price)
+
+                            if sell_response.get('success'):
+                                order.update_uuid(sell_response.get('result').get('uuid'))
+                                order.update_status(OrderStatus.EXECUTED.name)
+                            else:
+                                logger.info('Manager: Failed to sell {}.'.format(market))
+                                raise ValueError('Manager: Execute sell order API call failed.')
+
+                        except (ConnectionError, ValueError) as e:
+
+                            # Failed to execute sell order - SKIP current order
+                            logger.debug(
+                                'Manager: Failed to execute sell order for {}: {}. Skipping sell order.'.format(
+                                    market, e
+                                ))
+
+                            skip_order(order, active_orders, completed_queue)
+                            continue
 
             stop = time()
             run_time = stop - start
+            logger.info('Manager: Run time: {0:.2f}s'.format(run_time))
 
             if run_time < sleep_time:
                 sleep(sleep_time - run_time)

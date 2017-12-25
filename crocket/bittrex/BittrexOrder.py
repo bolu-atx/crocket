@@ -19,7 +19,7 @@ class BittrexOrder:
                  status=OrderStatus.UNEXECUTED.name,
                  uuid=None,
                  actual_price=0,
-                 cost=0):
+                 total=0):
 
         self.market = market
         self.type = order_type
@@ -34,7 +34,7 @@ class BittrexOrder:
         self.open_time = open_time
         self.closed_time = closed_time
         self.actual_price = actual_price
-        self.cost = cost
+        self.total = total
 
     @staticmethod
     def create(order):
@@ -95,14 +95,17 @@ class BittrexOrder:
         order_type = order.get('Type')
 
         if order_type == 'LIMIT_BUY':
-            self.cost = (Decimal(order.get('Price')) + Decimal(order.get('CommissionPaid'))).quantize(
+            self.total -= (Decimal(order.get('Price')) + Decimal(order.get('CommissionPaid'))).quantize(
                 BittrexConstants.DIGITS)
 
-            self.current_quantity = (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
+            self.current_quantity += (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
                 BittrexConstants.DIGITS)
 
         elif order_type == 'LIMIT_SELL':
-            self.cost = (Decimal(order.get('Price')) - Decimal(order.get('CommissionPaid'))).quantize(
+            self.total += (Decimal(order.get('Price')) - Decimal(order.get('CommissionPaid'))).quantize(
+                BittrexConstants.DIGITS)
+
+            self.current_quantity -= (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
                 BittrexConstants.DIGITS)
 
     def update_uuid(self, uuid):
@@ -131,3 +134,10 @@ class BittrexOrder:
         """
 
         self.target_price = price
+
+    def update_current_quantity(self, quantity):
+        """
+        Update current quantity
+        :param quantity:
+        :return:
+        """
