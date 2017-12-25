@@ -124,7 +124,8 @@ manager = Process()
 # ==============================================================================
 
 
-def initialize_databases(database_name, markets, logger=None):
+def initialize_databases(database_name, markets,
+                         logger=None):
     """
     Create new database for data collection and new table for trades
     :param database_name:
@@ -168,29 +169,40 @@ def initialize_databases(database_name, markets, logger=None):
     tradebot_db.close()
 
 
-def format_tradebot_entry(market, entry):
+def format_tradebot_entry(market, buy_time, buy_signal, buy_price, buy_total, sell_time, sell_signal, sell_price,
+                          sell_total, profit, percent):
     """
     Format trade entry for insertion into trade table
     :param market:
-    :param entry:
+    :param buy_time:
+    :param buy_signal:
+    :param buy_price:
+    :param buy_total:
+    :param sell_time:
+    :param sell_signal:
+    :param sell_price:
+    :param sell_total:
+    :param profit:
+    :param percent:
     :return:
     """
 
     return [('market', market),
-            ('buy_time', entry.get('start')),
-            ('buy_signal', entry.get('buy_signal')),
-            ('buy_price', entry.get('buy_price')),
-            ('buy_total', entry.get('buy_total')),
-            ('sell_time', entry.get('stop')),
-            ('sell_signal', entry.get('sell_signal')),
-            ('sell_price', entry.get('sell_price')),
-            ('sell_total', entry.get('sell_total')),
-            ('profit', entry.get('profit')),
-            ('percent', entry.get('percent'))]
+            ('buy_time', buy_time),
+            ('buy_signal', buy_signal),
+            ('buy_price', buy_price),
+            ('buy_total', buy_total),
+            ('sell_time', sell_time),
+            ('sell_signal', sell_signal),
+            ('sell_price', sell_price),
+            ('sell_total', sell_total),
+            ('profit', profit),
+            ('percent', percent)]
 
 
 # TODO: refactor
-def close_positions(bittrex, wallet, logger=None):
+def close_positions(bittrex, wallet,
+                    logger=None):
     """
     Close all open positions
     :param bittrex:
@@ -240,7 +252,8 @@ def shutdown_server():
 # ==============================================================================
 
 def run_scraper(control_queue, database_name, logger, markets=MARKETS,
-                interval=60, sleep_time=5):
+                interval=60,
+                sleep_time=5):
     """
     Run scraper to pull data from Bittrex
     :param control_queue:
@@ -415,31 +428,45 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
 
             for market in scraper_data.keys():
 
+                data = market_data.get(market)
+
                 if market not in skip_list:
-                    if len(market_data.get(market).datetime) > 65:
+                    if len(data.datetime) > 65:
 
                         # Clear the first entries
-                        market_data[market].clear_first()
+                        data.clear_first()
 
                         status = market_status.get(market)
 
-                        run_algorithm(market_data.get(market),
+                        run_algorithm(data,
                                       status,
                                       amount_per_call,
                                       pending_order_queue,
                                       logger)
 
                         # Completed buy and sell order for single market
-                        # TODO: Update completed_buy formatting
-                        if status.buy_order.completed and status.sell_order.completed:
-                            # PROFIT = (SELL_TOTAL - BUY_TOTAL).QUANTIZE(DIGITS)
-                            #status['current_buy']['percent'] = (profit * Decimal(100) / buy_total).quantize(Decimal(10) ** -4)
-                            completed_buy['start'] = format_time(completed_buy.get('start'), "%Y-%m-%d %H:%M:%S")
-                            completed_buy['stop'] = format_time(completed_buy.get('stop'), "%Y-%m-%d %H:%M:%S")
+                        if status.buy_order.status == OrderStatus.COMPLETED.name and \
+                                status.sell_order.status == OrderStatus.COMPLETED.name:
 
-                            logger.info('Tradebot: completed buy/sell order for {}.'.format(market), completed_buy)
+                            profit = (status.sell_order.total - status.buy_order.total).quantize(BittrexConstants.DIGITS)
+                            percent = (profit * Decimal(100) / status.buy_order.total).quantize(Decimal(10) ** -4)
 
-                            db.insert_query(table_name, format_tradebot_entry(market, completed_buy))
+                            formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
+                            formatted_sell_time = format_time(status.sell_order.closed_time, "%Y-%m-%d %H:%M:%S")
+
+                            logger.info('Tradebot: completed buy/sell order for {}.'.format(market))
+
+                            db.insert_query(table_name, format_tradebot_entry(market,
+                                                                              formatted_buy_time,
+                                                                              status.buy_signal,
+                                                                              status.buy_order.actual_price,
+                                                                              status.buy_order.total,
+                                                                              formatted_sell_time,
+                                                                              status.sell_signal,
+                                                                              status.sell_order.acutal_price,
+                                                                              status.sell_order.total,
+                                                                              profit,
+                                                                              percent))
 
                             # Reset buy and sell orders
                             status.clear_orders()
@@ -457,8 +484,6 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
         logger.info('Tradebot: Stopping tradebot ...')
     finally:
         db.close()
-
-        logger.info('Tradebot: Stopped tradebot.')
         logger.info('Tradebot: Database connection closed.')
 
 
