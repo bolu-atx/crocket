@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from utilities.constants import BittrexConstants, OrderStatus
+from utilities.constants import BittrexConstants, OrderStatus, OrderType
 
 
 def skip_order(order, order_list, out_queue):
@@ -17,8 +17,25 @@ def skip_order(order, order_list, out_queue):
     out_queue.put(order)
 
 
+def get_order_and_update_wallet(order, wallet, bittrex):
+    """
+    Get order data and update wallet with order data
+    :param order:
+    :param wallet:
+    :return:
+    """
+
+    order_response = bittrex.get_order(order.uuid)
+    order.add_completed_order(order_response.get('result'))
+
+    if order.type == OrderType.BUY.name:
+        wallet.update_wallet(order.market, order.current_quantity, order.total)
+    else:
+        wallet.update_wallet(order.market, -1 * order.current_quantity, -1 * order.total)
+
+
 def buy_above_bid(market, order, wallet, bittrex, logger,
-                  percent=0.05):
+                  percent=5):
     """
     Execute buy order above bid price
     :param market:
@@ -44,7 +61,7 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
     bid_price = Decimal(str(ticker.get('Bid')))
     ask_price = Decimal(str(ticker.get('Ask')))
 
-    price_buffer = ((ask_price - bid_price) * Decimal(str(percent)))
+    price_buffer = ((ask_price - bid_price) * Decimal(str(percent / 100)))
 
     buy_price = (bid_price + price_buffer).quantize(BittrexConstants.DIGITS)
 
@@ -82,16 +99,14 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
 
 
 def sell_below_ask(market, order, wallet, bittrex, logger,
-                   percent=0.05):
+                   percent=5):
     """
     Execute sell order below ask price
     Set percent too
     :param percent:
     :param market:
     :param order:
-    :param active_orders:
     :param wallet:
-    :param completed_queue:
     :param bittrex:
     :param logger:
     :return:
@@ -111,7 +126,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     bid_price = Decimal(str(ticker.get('Bid')))
     ask_price = Decimal(str(ticker.get('Ask')))
 
-    price_buffer = ((ask_price - bid_price) * Decimal(str(percent)))
+    price_buffer = ((ask_price - bid_price) * Decimal(str(percent / 100)))
 
     sell_price = (ask_price - price_buffer).quantize(BittrexConstants.DIGITS)
 

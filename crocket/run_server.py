@@ -16,7 +16,7 @@ from bittrex.bittrex2 import Bittrex, format_bittrex_entry, return_request_input
 from bittrex.BittrexOrder import BittrexOrder
 from bittrex.BittrexStatus import BittrexStatus
 from bittrex.BittrexData import BittrexData
-from manager_helper import sell_below_ask, skip_order
+from manager_helper import buy_above_bid, get_order_and_update_wallet, sell_below_ask, skip_order
 from scraper_helper import get_data, process_data
 from sql.sql import Database
 from trade_algorithm import run_algorithm
@@ -200,41 +200,6 @@ def format_tradebot_entry(market, buy_time, buy_signal, buy_price, buy_total, se
             ('percent', percent)]
 
 
-# TODO: refactor
-def close_positions(bittrex, wallet,
-                    logger=None):
-    """
-    Close all open positions
-    :param bittrex:
-    :param wallet:
-    :param logger:
-    :return:
-    """
-    for market in wallet:
-
-        sell_total = wallet.get(market)
-        if market != 'BTC' and sell_total > 0:
-            try:
-                sell_rate = (MINIMUM_SELL_AMOUNT / sell_total).quantize(BittrexConstants.DIGITS)
-                sell_response = bittrex.sell_or_else(market, wallet.get(market), sell_rate, logger=logger)
-
-                if sell_response.get('success'):
-                    sell_result = sell_response.get('result')
-
-                    sell_total = (Decimal(sell_result.get('Price')) -
-                                  Decimal(sell_result.get('CommissionPaid'))).quantize(BittrexConstants.DIGITS)
-
-                    wallet['BTC'] = (wallet.get('BTC') + sell_total).quantize(BittrexConstants.DIGITS)
-                    logger.info('Tradebot: Successfully closed {}'.format(market))
-
-            except (ConnectionError, RuntimeError) as e:
-                if logger:
-                    logger.error('Tradebot: Failed to close {}: {}.'.format(market, e))
-                    logger.info('ACTION: Manually close {}.'.format(market))
-
-    logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
-
-
 def shutdown_server():
     """
     Shutdown the server
@@ -316,6 +281,13 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                     db.insert_transaction_query(formatted_entries)
 
+                stop = time()
+                run_time = stop - start
+                logger.info('Tradebot: Total time: {0:.2f}s'.format(run_time))
+
+                if run_time < sleep_time:
+                    sleep(sleep_time - run_time)
+
                 if not control_queue.empty():
 
                     signal = control_queue.get()
@@ -331,13 +303,6 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                     elif signal == "STOP":
                         logger.info("Scraper: Stopping scraper ...")
                         break
-
-                stop = time()
-                run_time = stop - start
-                logger.info('Tradebot: Total time: {0:.2f}s'.format(run_time))
-
-                if run_time < sleep_time:
-                    sleep(sleep_time - run_time)
 
     except ConnectionError as e:
         logger.debug('ConnectionError: {}. Exiting ...'.format(e))
@@ -487,7 +452,7 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
         logger.info('Tradebot: Database connection closed.')
 
 
-def run_manager(order_queue, completed_queue, wallet_total, logger,
+def run_manager(control_queue, order_queue, completed_queue, wallet_total, logger,
                 sleep_time=5):
     """
     Handles execution of all orders
@@ -596,7 +561,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                     # Buy order has not been executed
                     else:
 
-                        buy_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=0.05)
+                        buy_status = buy_above_bid(market, order, wallet, bittrex, logger, percent=5)
 
                         if not buy_status:
                             skip_order(order, active_orders, completed_queue)
@@ -630,7 +595,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
 
                                         # Market sell
                                         sell_status = sell_below_ask(market, order, wallet, bittrex, logger,
-                                                                     percent=1)
+                                                                     percent=100)
 
                                         if not sell_status:
                                             skip_order(order, active_orders, completed_queue)
@@ -669,7 +634,7 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
                     # Sell order has not been executed
                     else:
 
-                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=0.05)
+                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=5)
 
                         if not sell_status:
                             skip_order(order, active_orders, completed_queue)
@@ -681,20 +646,52 @@ def run_manager(order_queue, completed_queue, wallet_total, logger,
             if run_time < sleep_time:
                 sleep(sleep_time - run_time)
 
+            if not control_queue.empty():
+
+                signal = control_queue.get()
+
+                if signal == 'STOP':
+                    logger.info('Manager: Stopping manager.')
+                    break
+
     except ConnectionError as e:
         logger.debug('ConnectionError: {}. Exiting ...'.format(e))
     finally:
-        # TODO: check if any open orders
-        # TODO: refactor based on wallet class
-        if any(k for k in wallet if wallet.get(k) > 0 and k != 'BTC'):
-            logger.info('Tradebot: Open positions remaining.')
-            logger.info('Tradebot: Closing open positions.')
-            close_positions(bittrex, wallet, logger)
-        else:
-            logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get('BTC'))))
-            logger.info('Tradebot: No positions open. Safe to exit.')
 
-        logger.info('Manager: Stopped manager.')
+        if active_orders:
+
+            logger.info('Manager: {} active orders.'.format(str(len(active_orders))))
+            logger.info('Manager: Closing open positions.')
+
+            # Cancel orders and execute market sells
+            for order in active_orders:
+
+                if order.status == OrderStatus.EXECUTED.name:
+
+                    cancel_response = bittrex.cancel(order.uuid)
+
+                    if not cancel_response.get('success'):
+                        logger.info('Manager: Cancel order failed for {}'.format(order.market))
+
+                    get_order_and_update_wallet(order, wallet, bittrex)
+
+                sell_status = sell_below_ask(order.market, order, wallet, bittrex, logger, percent=100)
+
+                if not sell_status.get('success'):
+                    logger.info('Manager: Market sell order failed for {}.'.format(order.market))
+
+                sleep(3)  # Wait for market sell order to complete
+
+                # Get status of all market sell orders
+                get_order_and_update_wallet(order, wallet, bittrex)
+
+            open_markets = wallet.check_open_markets()
+
+            if open_markets:
+                logger.info('Manager: Remaining open markets:\n', open_markets)
+
+            logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get_quantity('BTC'))))
+            logger.info('Manager: Stopped manager.')
 
 
 # TODO: implement telegram bot

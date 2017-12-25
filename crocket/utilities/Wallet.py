@@ -61,3 +61,11 @@ class Wallet:
         self._currencies['BTC']['quantity'] -= base_quantity
         self._currencies[market]['quantity'] += quantity
         self._currencies[market]['base_quantity'] += base_quantity
+
+    def check_open_markets(self):
+        """
+        Check for any markets with non-zero quantity
+        :return:
+        """
+
+        return {k: v for k, v in self._currencies.items() if k != 'BTC' and v.get('quantity') > 0}
