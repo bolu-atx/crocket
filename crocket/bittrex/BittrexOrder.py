@@ -54,6 +54,7 @@ class BittrexOrder:
     def add_completed_order(self, order):
         """
         Add order data from Bittrex API response
+
         Ex:
         {'AccountId': None,
          'CancelInitiated': False,
@@ -79,7 +80,7 @@ class BittrexOrder:
          'Sentinel': 'c3172e91-aac4-440a-b722-7c5142c5e9b0',
          'Type': 'LIMIT_BUY'}
 
-        :param order_data: Bittrex order response
+        :param order: Bittrex order response
         :return:
         """
 
