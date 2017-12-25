@@ -619,9 +619,6 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                         if not sell_status:
                                             skip_order(order, active_orders, completed_queue)
 
-                                        sleep(2)  # Wait for market to complete sell order
-                                        get_order_and_update_wallet(order, wallet, bittrex)
-
                                         continue
 
                                     order.add_completed_order(order_data)
