@@ -383,7 +383,8 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
 
                         # Check if buy order skipped
                         if order.status == OrderStatus.SKIPPED.name:
-                            market_status[order_market].set_buy_status(False)
+                            market_status[order_market].bought = False
+                            market_status[order_market].buy_signal = None
                         else:
                             market_status[order_market].buy_order = order
                     else:
@@ -433,8 +434,10 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                                                                               profit,
                                                                               percent))
 
-                            # Reset buy and sell orders
+                            # Reset buy/sell orders and buy/sell signals
                             status.clear_orders()
+                            status.buy_signal = None
+                            status.sell_signal = None
 
             if not control_queue.empty():
 

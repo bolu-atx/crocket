@@ -108,37 +108,3 @@ class BittrexOrder:
 
             self.current_quantity -= (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
                 BittrexConstants.DIGITS)
-
-    def update_uuid(self, uuid):
-        """
-        Update order UUID
-        :param uuid:
-        :return:
-        """
-
-        self.uuid = uuid
-
-    def update_status(self, status):
-        """
-        Update order status
-        :param status:
-        :return:
-        """
-
-        self.status = status
-
-    def update_target_price(self, price):
-        """
-        Update target price
-        :param price:
-        :return:
-        """
-
-        self.target_price = price
-
-    def update_current_quantity(self, quantity):
-        """
-        Update current quantity
-        :param quantity:
-        :return:
-        """

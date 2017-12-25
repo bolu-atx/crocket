@@ -36,33 +36,11 @@ class BittrexStatus:
         self.buy_order = BittrexOrder(order_type=OrderType.BUY.name)
         self.sell_order = BittrexOrder(order_type=OrderType.SELL.name)
 
-    def set_buy_status(self, status):
-        """
-        Set buy status
-        :param status: boolean
-        :return:
-        """
-
-        assert type(status) is bool
-
-        self.bought = status
-
-    def set_stop_gain(self, status):
-        """
-        Set stop gain
-        :param status:
-        :return:
-        """
-
-        assert type(status) is bool
-
-        self.stop_gain = status
-
     def reset_stop_gain(self):
         """
         Reset stop gain
         :return:
         """
 
-        self.set_stop_gain(False)
+        self.stop_gain = False
         self.stop_gain_percent = DEFAULT_STOP_GAIN_PERCENT

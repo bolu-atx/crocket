@@ -12,7 +12,7 @@ def skip_order(order, order_list, out_queue):
     :return:
     """
 
-    order.update_status(OrderStatus.SKIPPED.name)
+    order.status = OrderStatus.SKIPPED.name
     order_list.remove(order)
     out_queue.put(order)
 
@@ -69,7 +69,7 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
     if buy_price > ask_price:
         buy_price = bid_price
 
-    order.update_target_price(buy_price)
+    order.target_price = buy_price
 
     # No action if not enough to place buy order - SKIP current order
     if wallet.get_quantity('BTC') < order.base_quantity:
@@ -80,8 +80,8 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
         buy_response = bittrex.buy_limit(market, order.target_quantity, order.target_price)
 
         if buy_response.get('success'):
-            order.update_uuid(buy_response.get('result').get('uuid'))
-            order.update_status(OrderStatus.EXECUTED.name)
+            order.uuid = buy_response.get('result').get('uuid')
+            order.status = OrderStatus.EXECUTED.name
         else:
             logger.info('Manager: Failed to buy {}.'.format(market))
             raise ValueError('Manager: Execute buy order API call failed.')
@@ -133,7 +133,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     if sell_price < bid_price:
         sell_price = ask_price
 
-    order.update_target_price(sell_price)
+    order.target_price = sell_price
 
     # No action if nothing available for sell order - SKIP current order
     if wallet.get_quantity(market) == 0:
@@ -144,8 +144,8 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
         sell_response = bittrex.sell_limit(market, wallet.get_quantity(market), order.target_price)
 
         if sell_response.get('success'):
-            order.update_uuid(sell_response.get('result').get('uuid'))
-            order.update_status(OrderStatus.EXECUTED.name)
+            order.uuid = sell_response.get('result').get('uuid')
+            order.status = OrderStatus.EXECUTED.name
         else:
             logger.info('Manager: Failed to sell {}.'.format(market))
             raise ValueError('Manager: Execute sell order API call failed.')

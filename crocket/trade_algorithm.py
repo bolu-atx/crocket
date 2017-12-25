@@ -64,7 +64,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                     }
                 )
 
-                status.set_buy_status(True)
+                status.bought = True
                 status.buy_signal = current_price
                 status.last_buy_time = current_time
 
@@ -94,7 +94,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
 
         # Activate stop gain signal after passing threshold percentage
         if not status.stop_gain and current_price > current_stop_gain_threshold:
-            status.set_stop_gain(True)
+            status.stop_gain = True
         elif status.stop_gain and current_price > next_stop_gain_threshold:
             status.stop_gain_percent = status.stop_gain_percent + stop_gain_increment
 
@@ -115,7 +115,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                 }
             )
 
-            status.set_buy_status(False)
+            status.bought = False
             status.sell_signal = current_price
             status.reset_stop_gain()
 
