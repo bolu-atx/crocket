@@ -173,17 +173,17 @@ def format_tradebot_entry(market, buy_time, buy_signal, buy_price, buy_total, se
                           sell_total, profit, percent):
     """
     Format trade entry for insertion into trade table
-    :param market:
-    :param buy_time:
-    :param buy_signal:
-    :param buy_price:
-    :param buy_total:
-    :param sell_time:
-    :param sell_signal:
-    :param sell_price:
-    :param sell_total:
-    :param profit:
-    :param percent:
+    :param market: Name of market
+    :param buy_time: Close time of buy order
+    :param buy_signal: Price when buy signal is triggered
+    :param buy_price: Actual price of executed buy order
+    :param buy_total: Net total of buy order
+    :param sell_time: Close time of sell order
+    :param sell_signal: Price when sell signal is triggered
+    :param sell_price: Actual price of executed sell order
+    :param sell_total: Net total of sell order
+    :param profit: Net profit (sell total - buy total)
+    :param percent: Net percent ((sell total - buy total) / buy total)
     :return:
     """
 
@@ -221,12 +221,12 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
                 sleep_time=5):
     """
     Run scraper to pull data from Bittrex
-    :param control_queue:
-    :param database_name:
-    :param logger:
-    :param markets:
-    :param interval:
-    :param sleep_time:
+    :param control_queue: Queue to control scraper
+    :param database_name: Name of database
+    :param logger: Main logger
+    :param markets: List of active markets
+    :param interval: Duration between entries into database
+    :param sleep_time: Duration between API calls
     :return:
     """
     # Initialize database object
@@ -456,6 +456,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                 sleep_time=5):
     """
     Handles execution of all orders
+    :param control_queue: Queue to control manager
     :param order_queue: Queue receiving orders
     :param completed_queue: Queue sending completed orders
     :param wallet_total: Amount in wallet available
@@ -787,10 +788,11 @@ def _tradebot_start(table_name):
 
     global manager
     manager = Process(target=run_manager,
-                      args=())  # TODO add arguments here
+                      args=(MANAGER_QUEUE, ORDER_QUEUE, COMPLETED_ORDER_QUEUE,
+                            WALLET_TOTAL, main_logger))
     manager.start()
 
-    return jsonify("Tradebot: Started successfully. Wallet total: {}. Amount per call: {}".format(
+    return jsonify("Tradebot/Manager: Started successfully. Wallet total: {}. Amount per call: {}".format(
         str(WALLET_TOTAL), str(AMOUNT_PER_CALL))), 200
 
 
@@ -805,7 +807,7 @@ def _tradebot_stop():
     tradebot.join()
     manager.join()
 
-    return jsonify("STOPPED TRADEBOT"), 200
+    return jsonify("STOPPED TRADEBOT AND MANAGER"), 200
 
 
 # TODO: Implement check that scraper and tradebot have successfully exited

@@ -20,8 +20,9 @@ def skip_order(order, order_list, out_queue):
 def get_order_and_update_wallet(order, wallet, bittrex):
     """
     Get order data and update wallet with order data
-    :param order:
-    :param wallet:
+    :param bittrex: Bittrex with credentials
+    :param order: BittrexOrder
+    :param wallet: Wallet
     :return:
     """
 
@@ -38,12 +39,12 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
                   percent=5):
     """
     Execute buy order above bid price
-    :param market:
-    :param order:
-    :param wallet:
-    :param bittrex:
-    :param logger:
-    :param percent:
+    :param market: Name of market
+    :param order: BittrexOrder
+    :param wallet: Wallet
+    :param bittrex: Bittrex with credentials
+    :param logger: Logger
+    :param percent: Number between 0 and 100 to specify position in price differential
     :return:
     """
 
@@ -53,7 +54,7 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
     except (ConnectionError, ValueError) as e:
 
         # Failed to get price - SKIP current order
-        logger.debug('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
+        logger.error('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
             e, market))
         # TODO: send telegram message
         return False
@@ -102,13 +103,12 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
                    percent=5):
     """
     Execute sell order below ask price
-    Set percent too
-    :param percent:
-    :param market:
-    :param order:
-    :param wallet:
-    :param bittrex:
-    :param logger:
+    :param market: Name of market
+    :param order: BittrexOrder
+    :param wallet: Wallet
+    :param bittrex: Bittrex with credentials
+    :param logger: Logger
+    :param percent: Number between 0 and 100 to specify position in price differential
     :return:
     """
 
@@ -153,7 +153,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     except (ConnectionError, ValueError) as e:
 
         # Failed to execute sell order - SKIP current order
-        logger.debug(
+        logger.error(
             'Manager: Failed to execute sell order for {}: {}. Skipping sell order.'.format(
                 market, e
             ))
