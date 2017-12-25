@@ -413,8 +413,8 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                         # Completed buy and sell order for single market
                         if status.buy_order.status == OrderStatus.COMPLETED.name and \
                                 status.sell_order.status == OrderStatus.COMPLETED.name:
-
-                            profit = (status.sell_order.total - status.buy_order.total).quantize(BittrexConstants.DIGITS)
+                            profit = (status.sell_order.total - status.buy_order.total).quantize(
+                                BittrexConstants.DIGITS)
                             percent = (profit * Decimal(100) / status.buy_order.total).quantize(Decimal(10) ** -4)
 
                             formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
@@ -521,6 +521,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     if order_data.get('QuantityRemaining') > 0:
                                         cancel_response = bittrex.cancel(order.uuid)
 
+                                        logger.info('Manager: {} buy order incomplete - canceling.'.format(market))
+
                                         if not cancel_response.get('success'):
                                             # TODO: add telegram message here
                                             logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
@@ -533,6 +535,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                                     market))
                                             skip_order(order, active_orders, completed_queue)
                                             continue
+
+                                        logger.info('Manager: {} buy order partially filled.'.format(market))
 
                                     order.add_completed_order(order_data)
 
@@ -592,21 +596,33 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     if order_data.get('QuantityRemaining') > 0:
                                         cancel_response = bittrex.cancel(order.uuid)
 
+                                        logger.info('Manager: {} sell order incomplete - canceling.'.format(market))
+
                                         if not cancel_response.get('success'):
                                             # TODO: add telegram message here
                                             logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
                                             logger.error('Manager: May need to manually cancel order.')
 
+                                        # Check if any of sell order completed
+                                        if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
+
+                                            order.add_completed_order(order_data)
+                                            wallet.update_wallet(market, -1 * order.current_quantity, -1 * order.total)
+                                            logger.info('Manager: {} sell order partially filled.'.format(market))
+
                                         # Market sell
                                         sell_status = sell_below_ask(market, order, wallet, bittrex, logger,
-                                                                     percent=100)
+                                                                     percent=110)
+
+                                        logger.info('Manager: Executing market sell order for {}.'.format(market))
 
                                         if not sell_status:
                                             skip_order(order, active_orders, completed_queue)
 
-                                        continue
+                                        sleep(2)  # Wait for market to complete sell order
+                                        get_order_and_update_wallet(order, wallet, bittrex)
 
-                                        # TODO: add profit from multiple sell orders
+                                        continue
 
                                     order.add_completed_order(order_data)
                                     wallet.update_wallet(market, -1 * order.current_quantity, -1 * order.total)
@@ -679,12 +695,12 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                     get_order_and_update_wallet(order, wallet, bittrex)
 
-                sell_status = sell_below_ask(order.market, order, wallet, bittrex, logger, percent=100)
+                sell_status = sell_below_ask(order.market, order, wallet, bittrex, logger, percent=110)
 
                 if not sell_status.get('success'):
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
 
-                sleep(3)  # Wait for market sell order to complete
+                sleep(2)  # Wait for market sell order to complete
 
                 # Get status of all market sell orders
                 get_order_and_update_wallet(order, wallet, bittrex)

@@ -108,7 +108,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     :param wallet: Wallet
     :param bittrex: Bittrex with credentials
     :param logger: Logger
-    :param percent: Number between 0 and 100 to specify position in price differential
+    :param percent: Number >= 0 to specify position in price differential
     :return:
     """
 
