@@ -21,10 +21,10 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                   wait_time=14400):
 
     market = status.market
-    time = data.get('datetime')
-    buyvolume = data.get('buy_volume')
-    sellvolume = data.get('sell_volume')
-    wprice = data.get('wprice')
+    time = data.datetime
+    buyvolume = data.buy_volume
+    sellvolume = data.sell_volume
+    wprice = data.wprice
 
     current_time = time[-1]
     current_price = wprice[-1]
