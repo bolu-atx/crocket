@@ -472,7 +472,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
     active_orders = []
 
     # Initialize Wallet
-    wallet = Wallet(amount=wallet_total)
+    wallet = Wallet(amount=wallet_total,
+                    markets=MARKETS)
 
     # Initialize Bittrex object
     bittrex = Bittrex(api_key=BITTREX_CREDENTIALS.get('key'),
