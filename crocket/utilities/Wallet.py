@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-ZERO = Decimal(0).quantize('1e-8')
+ZERO = Decimal(0).quantize(Decimal('1e-8'))
 
 
 class Wallet:

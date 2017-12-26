@@ -1,6 +1,21 @@
-# Crocket
+# Crocket (Crypto rocket)
 
-## run_bot.py
+## How to run
 
-Run telegram bot to trade on Bittrex via telegram messages.
+1. Open a new screen.
 
+```bash
+screen
+```
+
+2. Start the server.
+
+```bash
+cd crocket/crocket
+python run_server.py
+```
+
+3.
+
+
+4.
