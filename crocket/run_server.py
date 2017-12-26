@@ -696,12 +696,12 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                 if not sell_status.get('success'):
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
 
-                sleep(2)  # Wait for market sell order to complete
+                sleep(3)  # Wait for market sell order to complete
 
                 # Get status of all market sell orders
                 get_order_and_update_wallet(order, wallet, bittrex)
 
-            open_markets = wallet.check_open_markets()
+            open_markets = wallet.get_open_markets()
 
             if open_markets:
                 logger.info('Manager: Remaining open markets:\n', open_markets)

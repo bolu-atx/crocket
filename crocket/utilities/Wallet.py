@@ -62,9 +62,9 @@ class Wallet:
         self._currencies[market]['quantity'] += quantity
         self._currencies[market]['base_quantity'] += base_quantity
 
-    def check_open_markets(self):
+    def get_open_markets(self):
         """
-        Check for any markets with non-zero quantity
+        Get markets with non-zero quantity
         :return:
         """
 
