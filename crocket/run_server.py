@@ -11,6 +11,7 @@ from os import environ
 from os.path import dirname, join, realpath
 from random import shuffle
 from time import sleep, time
+from traceback import format_exc
 
 from bittrex.bittrex2 import Bittrex, format_bittrex_entry, return_request_input
 from bittrex.BittrexOrder import BittrexOrder
@@ -506,6 +507,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                             if order_response.get('success'):
                                 order_data = order_response.get('result')
+                                logger.info('Manager: Get order data for {} successful.'.format(market))
 
                                 # First time getting order data
                                 if order.open_time is not None:
@@ -532,7 +534,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                             logger.info(
                                                 'Manager: {} buy order not filled - canceled and skipped.'.format(
                                                     market))
-                                            skip_order(order, active_orders, completed_queue)
+                                            skip_order(order, active_orders, completed_queue, logger)
                                             continue
 
                                         logger.info('Manager: {} buy order partially filled.'.format(market))
@@ -563,7 +565,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
                                 logger.error('Manager: May need to manually cancel order.')
 
-                            skip_order(order, active_orders, completed_queue)
+                            skip_order(order, active_orders, completed_queue, logger)
 
                     # Buy order has not been executed
                     else:
@@ -571,7 +573,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                         buy_status = buy_above_bid(market, order, wallet, bittrex, logger, percent=5)
 
                         if not buy_status:
-                            skip_order(order, active_orders, completed_queue)
+                            skip_order(order, active_orders, completed_queue, logger)
 
                 # Actions for sell order
                 else:
@@ -616,7 +618,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                         logger.info('Manager: Executing market sell order for {}.'.format(market))
 
                                         if not sell_status:
-                                            skip_order(order, active_orders, completed_queue)
+                                            skip_order(order, active_orders, completed_queue, logger)
 
                                         continue
 
@@ -645,7 +647,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
                                 logger.error('Manager: May need to manually cancel order.')
 
-                            skip_order(order, active_orders, completed_queue)
+                            skip_order(order, active_orders, completed_queue, logger)
 
                     # Sell order has not been executed
                     else:
@@ -653,7 +655,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                         sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=5)
 
                         if not sell_status:
-                            skip_order(order, active_orders, completed_queue)
+                            skip_order(order, active_orders, completed_queue, logger)
 
             stop = time()
             run_time = stop - start
@@ -670,8 +672,9 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     logger.info('Manager: Stopping manager.')
                     break
 
-    except ConnectionError as e:
-        logger.debug('ConnectionError: {}. Exiting ...'.format(e))
+    except Exception:  # TODO: change back to ConnectionError
+        #logger.debug('ConnectionError: {}. Exiting ...'.format(e))
+        logger.error(format_exc())
     finally:
 
         if active_orders:

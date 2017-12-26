@@ -3,9 +3,10 @@ from decimal import Decimal
 from utilities.constants import BittrexConstants, OrderStatus, OrderType
 
 
-def skip_order(order, order_list, out_queue):
+def skip_order(order, order_list, out_queue, logger):
     """
     Skip current order
+    :param logger: Main logger
     :param order: Current order
     :param order_list: Active orders
     :param out_queue: Queue of completed orders
@@ -15,6 +16,8 @@ def skip_order(order, order_list, out_queue):
     order.status = OrderStatus.SKIPPED.name
     order_list.remove(order)
     out_queue.put(order)
+
+    logger.info('SKIPPING {} order for {}.'.format(order.type.name, order.market), order)
 
 
 def get_order_and_update_wallet(order, wallet, bittrex):
@@ -82,6 +85,7 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
         if buy_response.get('success'):
             order.uuid = buy_response.get('result').get('uuid')
             order.status = OrderStatus.EXECUTED.name
+            logger.info('Manager: Buy order for {} submitted successfully.'.format(market))
         else:
             logger.info('Manager: Failed to buy {}.'.format(market))
             raise ValueError('Manager: Execute buy order API call failed.')
@@ -146,6 +150,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
         if sell_response.get('success'):
             order.uuid = sell_response.get('result').get('uuid')
             order.status = OrderStatus.EXECUTED.name
+            logger.info('Manager: Sell order for {} submitted successfully.'.format(market))
         else:
             logger.info('Manager: Failed to sell {}.'.format(market))
             raise ValueError('Manager: Execute sell order API call failed.')

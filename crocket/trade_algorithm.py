@@ -55,14 +55,16 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
 
                 target_quantity = (buy_amount / current_price).quantize(BittrexConstants.DIGITS)
 
-                order_queue.put(
-                    {
-                        'market': market,
-                        'type': OrderType.BUY.name,
-                        'target_quantity': target_quantity,
-                        'base_quantity': buy_amount
-                    }
-                )
+                order = {
+                    'market': market,
+                    'type': OrderType.BUY.name,
+                    'target_quantity': target_quantity,
+                    'base_quantity': buy_amount
+                }
+
+                logger.info('BUY:\n', order)
+
+                order_queue.put(order)
 
                 status.bought = True
                 status.buy_signal = current_price
@@ -107,13 +109,15 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
 
             target_quantity = buy_order.current_quantity
 
-            order_queue.put(
-                {
-                    'market': market,
-                    'type': OrderType.SELL.name,
-                    'target_quantity': target_quantity,
-                }
-            )
+            order = {
+                'market': market,
+                'type': OrderType.SELL.name,
+                'target_quantity': target_quantity,
+            }
+
+            logger.info('SELL:\n', order)
+
+            order_queue.put(order)
 
             status.bought = False
             status.sell_signal = current_price
