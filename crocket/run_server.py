@@ -93,8 +93,6 @@ AMOUNT_PER_CALL = 0
 
 SKIP_LIST = ['BTC-BCC', 'BTC-ETH', 'BTC-LSK', 'BTC-NEO', 'BTC-OMG', 'BTC-XRP', 'BTC-LTC']
 
-MINIMUM_SELL_AMOUNT = Decimal(0.0006).quantize(BittrexConstants.DIGITS)
-
 # ==============================================================================
 # Set up queues and processes
 # ==============================================================================
@@ -115,8 +113,6 @@ COMPLETED_ORDER_QUEUE = Queue()
 scraper = Process()
 tradebot = Process()
 manager = Process()
-
-
 # telegram = Process()
 
 # ==============================================================================
