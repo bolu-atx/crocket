@@ -490,8 +490,10 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                     new_orders.append(new_order)
 
+                active_orders += new_orders
+                new_orders.clear()
+
             start = time()
-            active_orders += new_orders
 
             for order in active_orders:
 
@@ -632,12 +634,12 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     completed_queue.put(order)
 
                             else:
-                                raise ValueError('Manager: Get buy order data API call failed.')
+                                raise ValueError('Manager: Get sell order data API call failed.')
 
                         except (ConnectionError, ValueError) as e:
 
-                            # Failed to get buy order data - SKIP current order
-                            logger.debug('Manager: Failed to get buy order data for {}: {}.'.format(market, e))
+                            # Failed to get sell order data - SKIP current order
+                            logger.debug('Manager: Failed to get sell order data for {}: {}.'.format(market, e))
 
                             cancel_response = bittrex.cancel(order.uuid)
 
