@@ -746,7 +746,7 @@ class Bittrex(object):
         if not ticker.get('success'):
             raise ValueError('Get ticker API call failed.')
 
-        return ticker
+        return ticker.get('result')
 
     def sell_or_else(self, market, quantity, rate, retry=3, logger=None):
         """
