@@ -92,8 +92,8 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
             order.status = OrderStatus.EXECUTED.name
             logger.info('Manager: Buy order for {} submitted successfully.'.format(market))
         else:
-            logger.info('Manager: Failed to buy {}.'.format(market))
-            raise ValueError('Manager: Execute buy order API call failed.')
+            logger.info('Manager: Failed to buy {}: {}.'.format(market, buy_response.get('message')))
+            raise ValueError('Manager: Execute buy order API call failed: {}.'.format(buy_response.get('message')))
 
     except (ConnectionError, ValueError) as e:
 
@@ -160,8 +160,8 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
             order.status = OrderStatus.EXECUTED.name
             logger.info('Manager: Sell order for {} submitted successfully.'.format(market))
         else:
-            logger.info('Manager: Failed to sell {}.'.format(market))
-            raise ValueError('Manager: Execute sell order API call failed.')
+            logger.info('Manager: Failed to sell {}: {}.'.format(market, sell_response.get('message')))
+            raise ValueError('Manager: Execute sell order API call failed: {}.'.format(sell_response.get('message')))
 
     except (ConnectionError, ValueError) as e:
 

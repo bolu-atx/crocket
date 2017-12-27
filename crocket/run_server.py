@@ -597,6 +597,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     if order_data.get('QuantityRemaining') > 0:
                                         cancel_response = bittrex.cancel(order.uuid)
 
+                                        sleep(3)  # Wait for cancel to complete
                                         logger.info('Manager: {} sell order incomplete - canceling.'.format(market))
 
                                         if not cancel_response.get('success'):
@@ -688,6 +689,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                 if order.status == OrderStatus.EXECUTED.name:
 
                     cancel_response = bittrex.cancel(order.uuid)
+
+                    sleep(3)  # Wait for cancel to complete
 
                     if not cancel_response.get('success'):
                         logger.info('Manager: Cancel order failed for {}'.format(order.market))
