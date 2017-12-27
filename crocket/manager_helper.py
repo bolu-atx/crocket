@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from utilities.constants import BittrexConstants, OrderStatus, OrderType
+from utilities.constants import BittrexConstants, OrderStatus
 
 
 def skip_order(order, order_list, out_queue, logger):

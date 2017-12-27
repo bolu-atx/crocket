@@ -78,7 +78,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
             return
 
         buy_order = status.buy_order
-        current_buy_hold_time = (current_time - buy_order.get('closed_time')).total_seconds()
+        current_buy_hold_time = (current_time - buy_order.closed_time).total_seconds()
 
         if status.stop_gain_percent == DEFAULT_STOP_GAIN_PERCENT:
             loss_threshold = 0
@@ -86,12 +86,12 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
             loss_threshold = 0.01
 
         current_stop_gain_threshold = (
-            status.get('buy_signal') * Decimal(status.stop_gain_percent + 1)).quantize(BittrexConstants.DIGITS)
+            status.buy_signal * Decimal(status.stop_gain_percent + 1)).quantize(BittrexConstants.DIGITS)
         current_stop_gain_min_threshold = (
-            status.get('buy_signal') * Decimal(status.stop_gain_percent - loss_threshold + 1)).quantize(
+            status.buy_signal * Decimal(status.stop_gain_percent - loss_threshold + 1)).quantize(
             BittrexConstants.DIGITS)
 
-        next_stop_gain_threshold = (status.get('buy_signal') * Decimal(
+        next_stop_gain_threshold = (status.buy_signal * Decimal(
             status.stop_gain_percent + stop_gain_increment + 1)).quantize(BittrexConstants.DIGITS)
 
         # Activate stop gain signal after passing threshold percentage
@@ -103,7 +103,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
         # Sell if hit stop loss
         # Sell after passing max hold time
         # Sell after detecting stop gain signal and price drop below stop gain price
-        if (current_price < (status.get('buy_signal') * Decimal(1 - stop_loss_percent)).quantize(BittrexConstants.DIGITS)) or \
+        if (current_price < (status.buy_signal * Decimal(1 - stop_loss_percent)).quantize(BittrexConstants.DIGITS)) or \
                 current_buy_hold_time > max_hold_time or \
                 (status.stop_gain and current_price < current_stop_gain_min_threshold):
 
