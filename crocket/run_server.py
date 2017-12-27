@@ -408,9 +408,9 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                         # Completed buy and sell order for single market
                         if status.buy_order.status == OrderStatus.COMPLETED.name and \
                                 status.sell_order.status == OrderStatus.COMPLETED.name:
-                            profit = (status.sell_order.total - status.buy_order.total).quantize(
+                            profit = (status.sell_order.total + status.buy_order.total).quantize(
                                 BittrexConstants.DIGITS)
-                            percent = (profit * Decimal(100) / status.buy_order.total).quantize(Decimal(10) ** -4)
+                            percent = (profit * Decimal(-100) / status.buy_order.total).quantize(Decimal(10) ** -4)
 
                             formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
                             formatted_sell_time = format_time(status.sell_order.closed_time, "%Y-%m-%d %H:%M:%S")
@@ -717,8 +717,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
             if open_markets:
                 logger.info('Manager: Remaining open markets:\n', open_markets)
 
-            logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get_quantity('BTC'))))
-            logger.info('Manager: Stopped manager.')
+        logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get_quantity('BTC'))))
+        logger.info('Manager: Stopped manager.')
 
 
 # TODO: implement telegram bot
