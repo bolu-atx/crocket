@@ -424,7 +424,7 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                                                                               status.buy_order.total,
                                                                               formatted_sell_time,
                                                                               status.sell_signal,
-                                                                              status.sell_order.acutal_price,
+                                                                              status.sell_order.actual_price,
                                                                               status.sell_order.total,
                                                                               profit,
                                                                               percent))
