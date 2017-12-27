@@ -74,7 +74,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
     else:
 
         if status.buy_order.status != OrderStatus.COMPLETED.name:
-            logger.error('Tradebot: Attempted sell order when buy order still in progress: {}.'.format(market))
+            logger.error('Tradebot: Checking sell order when buy order still in progress: {}.'.format(market))
             return
 
         buy_order = status.buy_order

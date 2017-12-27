@@ -328,7 +328,6 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
 
     market_data = {}
     market_status = {}
-    completed_orders = []
 
     for market in markets:
 
@@ -368,24 +367,25 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
             if not completed_order_queue.empty():
 
                 while not completed_order_queue.empty():
-                    completed_orders.append(completed_order_queue.get())
 
-                # Update market statuses with completed orders
-                for order in completed_orders:
+                    completed_order = completed_order_queue.get()
+                    order_market = completed_order.market
 
-                    order_market = order.market
-                    if order.type == OrderType.BUY.name:
+                    # Update market statuses with completed orders
+                    if completed_order.type == OrderType.BUY.name:
 
                         # Check if buy order skipped
-                        if order.status == OrderStatus.SKIPPED.name:
+                        if completed_order.status == OrderStatus.SKIPPED.name:
                             market_status[order_market].bought = False
                             market_status[order_market].buy_signal = None
+                            logger.info('Tradebot: Received skipped buy order. Skipping buy order for {}.'.format(
+                                order_market))
                         else:
-                            market_status[order_market].buy_order = order
+                            market_status[order_market].buy_order = completed_order
+                            logger.info('Tradebot: Received completed buy order for {}.'.format(order_market))
                     else:
-                        market_status[order_market].sell_order = order
-
-                completed_orders.clear()
+                        market_status[order_market].sell_order = completed_order
+                        logger.info('Tradebot: Received completed sell order for {}.'.format(order_market))
 
             for market in scraper_data.keys():
 
@@ -442,9 +442,10 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                     logger.info('Tradebot: Stopping tradebot ...')
                     break
 
-    except (ConnectionError, ValueError) as e:
-        logger.error(e)
-        logger.info('Tradebot: Stopping tradebot ...')
+    except Exception:  # TODO: change back to ConnectionError and ValueError
+        logger.error(format_exc())
+        #logger.error(e)
+        #logger.info('Tradebot: Stopping tradebot ...')
     finally:
         db.close()
         logger.info('Tradebot: Database connection closed.')
