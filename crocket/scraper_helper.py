@@ -121,7 +121,8 @@ def get_data(markets, bittrex, session, proxies, proxy_indexes, logger=None):
 
         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
 
-            logger.info('Failed API call for {}, skipping.'.format(future.market))
+            # logger.info('Failed API call for {}, skipping.'.format(future.market))
+            pass
 
     return response_dict
 
