@@ -2,7 +2,6 @@ from concurrent.futures import as_completed
 from copy import deepcopy
 from decimal import Decimal
 from datetime import timedelta
-from random import randint
 from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
 
 from utilities.network import configure_ip, process_response
