@@ -280,7 +280,7 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Tradebot: Total time: {0:.2f}s'.format(run_time))
+                logger.info('Scraper: Total time: {0:.2f}s'.format(run_time))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
