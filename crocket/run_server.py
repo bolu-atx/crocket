@@ -570,7 +570,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     # Buy order has not been executed
                     else:
 
-                        buy_status = buy_above_bid(market, order, wallet, bittrex, logger, percent=5)
+                        buy_status = buy_above_bid(market, order, wallet, bittrex, logger, percent=20)
 
                         if not buy_status:
                             skip_order(order, active_orders, completed_queue, logger)
@@ -652,7 +652,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     # Sell order has not been executed
                     else:
 
-                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=5)
+                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=20)
 
                         if not sell_status:
                             skip_order(order, active_orders, completed_queue, logger)
