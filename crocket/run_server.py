@@ -368,9 +368,7 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
             if not completed_order_queue.empty():
 
                 while not completed_order_queue.empty():
-                    completed_order = BittrexOrder.create(completed_order_queue.get())
-
-                    completed_orders.append(completed_order)
+                    completed_orders.append(completed_order_queue.get())
 
                 # Update market statuses with completed orders
                 for order in completed_orders:
@@ -507,7 +505,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                             if order_response.get('success'):
                                 order_data = order_response.get('result')
-                                logger.info('Manager: Get order data for {} successful.'.format(market))
+                                logger.info('Manager: Get buy order data for {} successful.'.format(market))
 
                                 # First time getting order data
                                 if order.open_time is None:
@@ -545,7 +543,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
                                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
-                                                                              market.split('-')[-1]))
+                                                                              market))
 
                                     active_orders.remove(order)
                                     completed_queue.put(order)
@@ -583,6 +581,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                             if order_response.get('success'):
                                 order_data = order_response.get('result')
+                                logger.info('Manager: Get sell order data for {} successful.'.format(market))
 
                                 # First time getting order data
                                 if order.open_time is None:
@@ -608,7 +607,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                         if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
 
                                             order.add_completed_order(order_data)
-                                            wallet.update_wallet(market, -1 * order.current_quantity, -1 * order.total)
+                                            wallet.update_wallet(market, order.current_quantity, order.total)
                                             logger.info('Manager: {} sell order partially filled.'.format(market))
 
                                         # Market sell
@@ -623,7 +622,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                         continue
 
                                     order.add_completed_order(order_data)
-                                    wallet.update_wallet(market, -1 * order.current_quantity, -1 * order.total)
+                                    wallet.update_wallet(market, order.current_quantity, order.total)
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
                                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
