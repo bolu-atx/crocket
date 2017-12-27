@@ -510,7 +510,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 logger.info('Manager: Get order data for {} successful.'.format(market))
 
                                 # First time getting order data
-                                if order.open_time is not None:
+                                if order.open_time is None:
                                     order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
                                         order_data.get('Opened')))
 
@@ -585,7 +585,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 order_data = order_response.get('result')
 
                                 # First time getting order data
-                                if order.open_time is not None:
+                                if order.open_time is None:
                                     order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
                                         order_data.get('Opened')))
 
@@ -691,15 +691,20 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                     if not cancel_response.get('success'):
                         logger.info('Manager: Cancel order failed for {}'.format(order.market))
+                        continue
 
+                    logger.info('Manager: Cancel order successful for {}'.format(order.market))
                     get_order_and_update_wallet(order, wallet, bittrex)
 
                 sell_status = sell_below_ask(order.market, order, wallet, bittrex, logger, percent=110)
 
                 if not sell_status.get('success'):
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
+                    continue
 
                 sleep(3)  # Wait for market sell order to complete
+
+                logger.info('Manager: Market sell order successful for {}'.format(order.market))
 
                 # Get status of all market sell orders
                 get_order_and_update_wallet(order, wallet, bittrex)
