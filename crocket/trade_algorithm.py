@@ -62,7 +62,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                     'base_quantity': buy_amount
                 }
 
-                logger.info('BUY:\n', order)
+                logger.info('BUY:\n{}'.format(order))
 
                 order_queue.put(order)
 
@@ -115,7 +115,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                 'target_quantity': target_quantity,
             }
 
-            logger.info('SELL:\n', order)
+            logger.info('SELL:\n{}'.format(order))
 
             order_queue.put(order)
 
