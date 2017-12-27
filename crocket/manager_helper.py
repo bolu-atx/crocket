@@ -17,7 +17,7 @@ def skip_order(order, order_list, out_queue, logger):
     order_list.remove(order)
     out_queue.put(order)
 
-    logger.info('SKIPPING {} order for {}.'.format(order.type, order.market), order)
+    logger.info('SKIPPING {} order for {}.'.format(order.type, order.market))
 
 
 def get_order_and_update_wallet(order, wallet, bittrex):
