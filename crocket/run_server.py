@@ -612,10 +612,10 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                             logger.info('Manager: {} sell order partially filled.'.format(market))
 
                                         # Market sell
+                                        logger.info('Manager: Executing market sell order for {}.'.format(market))
+
                                         sell_status = sell_below_ask(market, order, wallet, bittrex, logger,
                                                                      percent=110)
-
-                                        logger.info('Manager: Executing market sell order for {}.'.format(market))
 
                                         if not sell_status:
                                             skip_order(order, active_orders, completed_queue, logger)

@@ -82,6 +82,9 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
         return False
 
     try:
+        logger.info('BUYING: {}, QUANTITY: {}, PRICE: {}'.format(market, str(order.target_quantity),
+                                                                 str(order.target_price)))
+
         buy_response = bittrex.buy_limit(market, order.target_quantity, order.target_price)
 
         if buy_response.get('success'):
@@ -147,6 +150,9 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
         return False
 
     try:
+        logger.info('SELLING: {}, QUANTITY: {}, PRICE: {}'.format(market, str(wallet.get_quantity(market)),
+                                                                  str(order.target_price)))
+
         sell_response = bittrex.sell_limit(market, wallet.get_quantity(market), order.target_price)
 
         if sell_response.get('success'):
