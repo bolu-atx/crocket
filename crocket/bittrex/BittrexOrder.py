@@ -6,6 +6,9 @@ from utilities.time import convert_bittrex_timestamp_to_datetime, utc_to_local
 
 
 class BittrexOrder:
+    """
+    Wrapper for a bittrex order
+    """
 
     def __init__(self,
                  market=None,

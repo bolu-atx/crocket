@@ -17,7 +17,7 @@ def skip_order(order, order_list, out_queue, logger):
     order_list.remove(order)
     out_queue.put(order)
 
-    logger.info('SKIPPING {} order for {}.'.format(order.type.name, order.market), order)
+    logger.info('SKIPPING {} order for {}.'.format(order.type, order.market), order)
 
 
 def get_order_and_update_wallet(order, wallet, bittrex):
@@ -30,12 +30,17 @@ def get_order_and_update_wallet(order, wallet, bittrex):
     """
 
     order_response = bittrex.get_order(order.uuid)
-    order.add_completed_order(order_response.get('result'))
 
-    if order.type == OrderType.BUY.name:
-        wallet.update_wallet(order.market, order.current_quantity, order.total)
-    else:
-        wallet.update_wallet(order.market, -1 * order.current_quantity, -1 * order.total)
+    if order_response.get('success'):
+        order_data = order_response.get('result')
+
+        if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
+            order.add_completed_order(order_response.get('result'))
+
+            if order.type == OrderType.BUY.name:
+                wallet.update_wallet(order.market, order.current_quantity, order.total)
+            else:
+                wallet.update_wallet(order.market, -1 * order.current_quantity, -1 * order.total)
 
 
 def buy_above_bid(market, order, wallet, bittrex, logger,
