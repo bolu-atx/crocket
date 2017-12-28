@@ -2,7 +2,6 @@ from concurrent.futures import as_completed
 from copy import deepcopy
 from decimal import Decimal
 from datetime import timedelta
-from random import randint
 from requests.exceptions import ConnectTimeout, ConnectionError, ProxyError, ReadTimeout
 
 from utilities.network import configure_ip, process_response
@@ -121,7 +120,8 @@ def get_data(markets, bittrex, session, proxies, proxy_indexes, logger=None):
 
         except (ProxyError, ConnectTimeout, ConnectionError, ReadTimeout):
 
-            logger.info('Failed API call for {}, skipping.'.format(future.market))
+            # logger.info('Failed API call for {}, skipping.'.format(future.market))
+            pass
 
     return response_dict
 

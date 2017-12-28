@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-ZERO = Decimal(0).quantize('1e-8')
+ZERO = Decimal(0).quantize(Decimal('1e-8'))
 
 
 class Wallet:
@@ -15,7 +15,6 @@ class Wallet:
         self._currencies = {
             'BTC': {
                 'quantity': amount,
-                'base_quantity': amount
             }}
 
         if isinstance(markets, list):
@@ -49,3 +48,24 @@ class Wallet:
         """
 
         return self._currencies[market].get('base_quantity')
+
+    def update_wallet(self, market, quantity, base_quantity):
+        """
+        Update wallet
+        :param market:
+        :param quantity: Quantity of market
+        :param base_quantity: Quantity of market in BTC
+        :return:
+        """
+
+        self._currencies['BTC']['quantity'] += base_quantity
+        self._currencies[market]['quantity'] += quantity
+        self._currencies[market]['base_quantity'] += base_quantity
+
+    def get_open_markets(self):
+        """
+        Get markets with non-zero quantity
+        :return:
+        """
+
+        return {k: v for k, v in self._currencies.items() if k != 'BTC' and v.get('quantity') > 0}

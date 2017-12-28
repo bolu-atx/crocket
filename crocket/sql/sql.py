@@ -92,9 +92,8 @@ class Database:
 
             try:
                 cursor.execute(query)
-            except (OperationalError, ProgrammingError) as e:
 
-                self.connection.rollback()
+            except (OperationalError, ProgrammingError) as e:
 
                 if self.logger:
                     self.logger.debug(e)
@@ -165,7 +164,7 @@ class Database:
                 'buy_time DATETIME NOT NULL, ' \
                 'buy_signal DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'buy_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
-                'buy_total DECIMAL(9,8) UNSIGNED NOT NULL, ' \
+                'buy_total DECIMAL(9,8) SIGNED NOT NULL, ' \
                 'sell_time DATETIME NOT NULL, ' \
                 'sell_signal DECIMAL(9,8) UNSIGNED NOT NULL, ' \
                 'sell_price DECIMAL(9,8) UNSIGNED NOT NULL, ' \
