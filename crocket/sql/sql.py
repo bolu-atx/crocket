@@ -86,17 +86,14 @@ class Database:
         query = ['INSERT INTO `{}` ({}) VALUES ({})'.format(entry[0], ','.join(entry[1]), ','.join(map(lambda x: "'{}'".format(str(x)), entry[2])))
                  for entry in entries]
 
-        query = '{}'.format(';'.join(query))
+        query = '{};COMMIT;'.format(';'.join(query))
 
         with closing(self.connection.cursor()) as cursor:
 
             try:
                 cursor.execute(query)
-                self.connection.commit()
 
             except (OperationalError, ProgrammingError) as e:
-
-                self.connection.rollback()
 
                 if self.logger:
                     self.logger.debug(e)
