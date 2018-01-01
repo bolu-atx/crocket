@@ -107,7 +107,7 @@ def run_algorithm(data, status, buy_amount, order_queue, logger,
                 current_buy_hold_time > max_hold_time or \
                 (status.stop_gain and current_price < current_stop_gain_min_threshold):
 
-            target_quantity = buy_order.current_quantity
+            target_quantity = buy_order.final_quantity
 
             order = {
                 'market': market,

@@ -35,9 +35,10 @@ def get_order_and_update_wallet(order, wallet, bittrex):
         order_data = order_response.get('result')
 
         if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
-            order.upddate_order(order_response.get('result'))
 
-            wallet.update_wallet(order.market, order.current_quantity, order.total)
+            order.upddate_order(order_response.get('result'))
+            order.complete_order()
+            wallet.update_wallet(order.market, -1 * order.final_quantity, order.final_total)
 
 
 def buy_above_bid(order, wallet, bittrex, logger,

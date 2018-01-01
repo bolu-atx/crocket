@@ -60,7 +60,7 @@ class Wallet:
 
         self._currencies['BTC']['quantity'] += base_quantity
         self._currencies[market]['quantity'] += quantity
-        self._currencies[market]['base_quantity'] += base_quantity
+        self._currencies[market]['base_quantity'] -= base_quantity
 
     def get_open_markets(self):
         """
