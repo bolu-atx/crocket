@@ -280,7 +280,9 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Scraper: Total time: {0:.2f}s'.format(run_time))
+
+                if run_time > 5:
+                    logger.info('Scraper: Total time: {0:.2f}s'.format(run_time))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -686,7 +688,9 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
             stop = time()
             run_time = stop - start
-            logger.info('Manager: Run time: {0:.2f}s'.format(run_time))
+
+            if run_time > 5:
+                logger.info('Manager: Run time: {0:.2f}s'.format(run_time))
 
             if run_time < sleep_time:
                 sleep(sleep_time - run_time)
