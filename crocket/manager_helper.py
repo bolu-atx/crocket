@@ -35,16 +35,15 @@ def get_order_and_update_wallet(order, wallet, bittrex):
         order_data = order_response.get('result')
 
         if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
-            order.add_completed_order(order_response.get('result'))
+            order.upddate_order(order_response.get('result'))
 
             wallet.update_wallet(order.market, order.current_quantity, order.total)
 
 
-def buy_above_bid(market, order, wallet, bittrex, logger,
+def buy_above_bid(order, wallet, bittrex, logger,
                   percent=5):
     """
     Execute buy order above bid price
-    :param market: Name of market
     :param order: BittrexOrder
     :param wallet: Wallet
     :param bittrex: Bittrex with credentials
@@ -54,13 +53,13 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
     """
 
     try:
-        ticker = bittrex.get_ticker_or_else(market)
+        ticker = bittrex.get_ticker_or_else(order.market)
 
     except (ConnectionError, ValueError) as e:
 
         # Failed to get price - SKIP current order
         logger.error('Manager: Failed to get price for {}: {}. Skipping buy order.'.format(
-            e, market))
+            e, order.market))
         # TODO: send telegram message
         return False
 
@@ -78,21 +77,21 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
 
     # No action if not enough to place buy order - SKIP current order
     if wallet.get_quantity('BTC') < order.base_quantity:
-        logger.info('Manager: Not enough in wallet to place buy order. Skipping {}.'.format(market))
+        logger.info('Manager: Not enough in wallet to place buy order. Skipping {}.'.format(order.market))
         return False
 
     try:
-        logger.info('BUYING: {}, QUANTITY: {}, PRICE: {}'.format(market, str(order.target_quantity),
+        logger.info('BUYING: {}, QUANTITY: {}, PRICE: {}'.format(order.market, str(order.target_quantity),
                                                                  str(order.target_price)))
 
-        buy_response = bittrex.buy_limit(market, order.target_quantity, order.target_price)
+        buy_response = bittrex.buy_limit(order.market, order.target_quantity, order.target_price)
 
         if buy_response.get('success'):
             order.uuid = buy_response.get('result').get('uuid')
             order.status = OrderStatus.EXECUTED.name
-            logger.info('Manager: Buy order for {} submitted successfully.'.format(market))
+            logger.info('Manager: Buy order for {} submitted successfully.'.format(order.market))
         else:
-            logger.info('Manager: Failed to buy {}: {}.'.format(market, buy_response.get('message')))
+            logger.info('Manager: Failed to buy {}: {}.'.format(order.market, buy_response.get('message')))
             raise ValueError('Manager: Execute buy order API call failed: {}.'.format(buy_response.get('message')))
 
     except (ConnectionError, ValueError) as e:
@@ -100,7 +99,7 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
         # Failed to execute buy order - SKIP current order
         logger.debug(
             'Manager: Failed to execute buy order for {}: {}. Skipping buy order.'.format(
-                market, e
+                order.market, e
             ))
 
         return False
@@ -108,11 +107,10 @@ def buy_above_bid(market, order, wallet, bittrex, logger,
     return True
 
 
-def sell_below_ask(market, order, wallet, bittrex, logger,
+def sell_below_ask(order, wallet, bittrex, logger,
                    percent=5):
     """
     Execute sell order below ask price
-    :param market: Name of market
     :param order: BittrexOrder
     :param wallet: Wallet
     :param bittrex: Bittrex with credentials
@@ -122,13 +120,13 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     """
 
     try:
-        ticker = bittrex.get_ticker_or_else(market)
+        ticker = bittrex.get_ticker_or_else(order.market)
 
     except (ConnectionError, ValueError) as e:
 
         # Failed to get price - SKIP current order
         logger.error('Manager: Failed to get price for {}: {}. ACTION: Manually sell.'.format(
-            e, market))
+            e, order.market))
         # TODO: send telegram message
         return False
 
@@ -145,22 +143,22 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
     order.target_price = sell_price
 
     # No action if nothing available for sell order - SKIP current order
-    if wallet.get_quantity(market) == 0:
-        logger.info('Manager: Not enough in wallet (0) to place sell order. Skipping {}.'.format(market))
+    if wallet.get_quantity(order.market) == 0:
+        logger.info('Manager: Not enough in wallet (0) to place sell order. Skipping {}.'.format(order.market))
         return False
 
     try:
-        logger.info('SELLING: {}, QUANTITY: {}, PRICE: {}'.format(market, str(wallet.get_quantity(market)),
+        logger.info('SELLING: {}, QUANTITY: {}, PRICE: {}'.format(order.market, str(order.target_quantity),
                                                                   str(order.target_price)))
 
-        sell_response = bittrex.sell_limit(market, wallet.get_quantity(market), order.target_price)
+        sell_response = bittrex.sell_limit(order.market, order.target_quantity, order.target_price)
 
         if sell_response.get('success'):
             order.uuid = sell_response.get('result').get('uuid')
             order.status = OrderStatus.EXECUTED.name
-            logger.info('Manager: Sell order for {} submitted successfully.'.format(market))
+            logger.info('Manager: Sell order for {} submitted successfully.'.format(order.market))
         else:
-            logger.info('Manager: Failed to sell {}: {}.'.format(market, sell_response.get('message')))
+            logger.info('Manager: Failed to sell {}: {}.'.format(order.market, sell_response.get('message')))
             raise ValueError('Manager: Execute sell order API call failed: {}.'.format(sell_response.get('message')))
 
     except (ConnectionError, ValueError) as e:
@@ -168,7 +166,7 @@ def sell_below_ask(market, order, wallet, bittrex, logger,
         # Failed to execute sell order - SKIP current order
         logger.error(
             'Manager: Failed to execute sell order for {}: {}. Skipping sell order.'.format(
-                market, e
+                order.market, e
             ))
 
         # TODO: send telegram message

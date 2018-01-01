@@ -54,9 +54,9 @@ class BittrexOrder:
 
         return new_order
 
-    def add_completed_order(self, order):
+    def update_order(self, order):
         """
-        Add order data from Bittrex API response
+        Update order data for current order UUID from Bittrex API response
 
         Ex:
         {'AccountId': None,
@@ -87,27 +87,40 @@ class BittrexOrder:
         :return:
         """
 
-        self.status = OrderStatus.COMPLETED.name
-        self.actual_price = Decimal(order.get('PricePerUnit')).quantize(BittrexConstants.DIGITS)
-
-        try:
-            self.closed_time = utc_to_local(convert_bittrex_timestamp_to_datetime(order.get('Closed')))
-        # Closed is None when order is incomplete
-        except TypeError:
-            self.closed_time = datetime.now().astimezone(tz=None)
-
+        closed_time = order.get('Closed')
         order_type = order.get('Type')
 
+        self.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(order.get('Opened')))
+        self.actual_price = Decimal(order.get('PricePerUnit')).quantize(BittrexConstants.DIGITS)
+        self.current_quantity = (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
+            BittrexConstants.DIGITS)
+
+        if closed_time:
+            self.closed_time = utc_to_local(convert_bittrex_timestamp_to_datetime(closed_time))
+            self.status = OrderStatus.COMPLETED.name
+        else:
+            self.closed_time = datetime.now().astimezone(tz=None)
+
         if order_type == 'LIMIT_BUY':
-            self.total -= (Decimal(order.get('Price')) + Decimal(order.get('CommissionPaid'))).quantize(
+            self.total = (Decimal(order.get('Price')) + Decimal(order.get('CommissionPaid'))).quantize(
                 BittrexConstants.DIGITS)
-
-            self.current_quantity += (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
-                BittrexConstants.DIGITS)
-
         elif order_type == 'LIMIT_SELL':
-            self.total += (Decimal(order.get('Price')) - Decimal(order.get('CommissionPaid'))).quantize(
+            self.total = (Decimal(order.get('Price')) - Decimal(order.get('CommissionPaid'))).quantize(
                 BittrexConstants.DIGITS)
 
-            self.current_quantity -= (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
-                BittrexConstants.DIGITS)
+    def add_order(self, order):
+        """
+        Add order data for additional order UUIDs from Bittrex API response
+        :param order: Bittrex order response
+        :return:
+        """
+
+
+
+    def complete_order(self):
+        """
+        Set order status to complete
+        :return:
+        """
+
+        self.status = OrderStatus.COMPLETED.name
