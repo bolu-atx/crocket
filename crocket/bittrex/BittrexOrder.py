@@ -95,9 +95,13 @@ class BittrexOrder:
         order_type = order.get('Type')
 
         self.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(order.get('Opened')))
-        self.actual_price = Decimal(order.get('PricePerUnit')).quantize(BittrexConstants.DIGITS)
         self.current_quantity = (Decimal(order.get('Quantity')) - Decimal(order.get('QuantityRemaining'))).quantize(
             BittrexConstants.DIGITS)
+
+        try:
+            self.actual_price = Decimal(order.get('PricePerUnit')).quantize(BittrexConstants.DIGITS)
+        except TypeError:
+            pass
 
         if closed_time:
             self.closed_time = utc_to_local(convert_bittrex_timestamp_to_datetime(closed_time))
