@@ -142,11 +142,11 @@ class Database:
         """
         query = 'CREATE TABLE IF NOT EXISTS `{}` (' \
                 'time DATETIME NOT NULL PRIMARY KEY, ' \
-                'price DECIMAL(14,8) UNSIGNED NOT NULL,' \
-                'wprice DECIMAL(14,8) UNSIGNED NOT NULL,' \
-                'base_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
-                'buy_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
-                'sell_volume DECIMAL(14,8) UNSIGNED NOT NULL,' \
+                'price DECIMAL(15,8) UNSIGNED NOT NULL,' \
+                'wprice DECIMAL(15,8) UNSIGNED NOT NULL,' \
+                'base_volume DECIMAL(15,8) UNSIGNED NOT NULL,' \
+                'buy_volume DECIMAL(15,8) UNSIGNED NOT NULL,' \
+                'sell_volume DECIMAL(15,8) UNSIGNED NOT NULL,' \
                 'buy_order MEDIUMINT UNSIGNED NOT NULL,' \
                 'sell_order MEDIUMINT UNSIGNED NOT NULL)'.format(table_name)
 

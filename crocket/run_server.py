@@ -280,7 +280,9 @@ def run_scraper(control_queue, database_name, logger, markets=MARKETS,
 
                 stop = time()
                 run_time = stop - start
-                logger.info('Scraper: Total time: {0:.2f}s'.format(run_time))
+
+                if run_time > 5:
+                    logger.info('Scraper: Total time: {0:.2f}s'.format(run_time))
 
                 if run_time < sleep_time:
                     sleep(sleep_time - run_time)
@@ -408,9 +410,9 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                         # Completed buy and sell order for single market
                         if status.buy_order.status == OrderStatus.COMPLETED.name and \
                                 status.sell_order.status == OrderStatus.COMPLETED.name:
-                            profit = (status.sell_order.total + status.buy_order.total).quantize(
+                            profit = (status.sell_order.final_total + status.buy_order.final_total).quantize(
                                 BittrexConstants.DIGITS)
-                            percent = (profit * Decimal(-100) / status.buy_order.total).quantize(Decimal(10) ** -4)
+                            percent = (profit * Decimal(-100) / status.buy_order.final_total).quantize(Decimal(10) ** -4)
 
                             formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
                             formatted_sell_time = format_time(status.sell_order.closed_time, "%Y-%m-%d %H:%M:%S")
@@ -421,11 +423,11 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                                                                               formatted_buy_time,
                                                                               status.buy_signal,
                                                                               status.buy_order.actual_price,
-                                                                              status.buy_order.total,
+                                                                              status.buy_order.final_total,
                                                                               formatted_sell_time,
                                                                               status.sell_signal,
                                                                               status.sell_order.actual_price,
-                                                                              status.sell_order.total,
+                                                                              status.sell_order.final_total,
                                                                               profit,
                                                                               percent))
 
@@ -508,10 +510,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 order_data = order_response.get('result')
                                 logger.info('Manager: Get buy order data for {} successful.'.format(market))
 
-                                # First time getting order data
-                                if order.open_time is None:
-                                    order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
-                                        order_data.get('Opened')))
+                                # Update order with response from Bittrex
+                                order.update_order(order_data)
 
                                 # Check if buy order has executed or passed open duration
                                 if not order_data.get('IsOpen') or \
@@ -538,9 +538,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                                         logger.info('Manager: {} buy order partially filled.'.format(market))
 
-                                    order.add_completed_order(order_data)
-
-                                    wallet.update_wallet(market, order.current_quantity, order.total)
+                                    order.complete_order()
+                                    wallet.update_wallet(market, order.final_quantity, order.final_total)
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
                                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
@@ -564,12 +563,27 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
                                 logger.error('Manager: May need to manually cancel order.')
 
-                            skip_order(order, active_orders, completed_queue, logger)
+                            # Buy order partially complete - send completed buy order
+                            if order.current_quantity > 0:
+
+                                order.complete_order()
+                                wallet.update_wallet(market, order.final_quantity, order.final_total)
+
+                                logger.info('Manager: {} buy order partially filled.'.format(market))
+                                logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
+                                logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
+                                                                          market))
+
+                                active_orders.remove(order)
+                                completed_queue.put(order)
+
+                            else:
+                                skip_order(order, active_orders, completed_queue, logger)
 
                     # Buy order has not been executed
                     else:
 
-                        buy_status = buy_above_bid(market, order, wallet, bittrex, logger, percent=10)
+                        buy_status = buy_above_bid(order, wallet, bittrex, logger, percent=10)
 
                         if not buy_status:
                             skip_order(order, active_orders, completed_queue, logger)
@@ -584,10 +598,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 order_data = order_response.get('result')
                                 logger.info('Manager: Get sell order data for {} successful.'.format(market))
 
-                                # First time getting order data
-                                if order.open_time is None:
-                                    order.open_time = utc_to_local(convert_bittrex_timestamp_to_datetime(
-                                        order_data.get('Opened')))
+                                order.update_order(order_data)
 
                                 # Check if sell order has executed or passed open duration
                                 if not order_data.get('IsOpen') or \
@@ -597,7 +608,6 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     if order_data.get('QuantityRemaining') > 0:
                                         cancel_response = bittrex.cancel(order.uuid)
 
-                                        sleep(3)  # Wait for cancel to complete
                                         logger.info('Manager: {} sell order incomplete - canceling.'.format(market))
 
                                         if not cancel_response.get('success'):
@@ -608,14 +618,16 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                         # Check if any of sell order completed
                                         if order_data.get('QuantityRemaining') != order_data.get('Quantity'):
 
-                                            order.add_completed_order(order_data)
-                                            wallet.update_wallet(market, order.current_quantity, order.total)
+                                            order.complete_order()
+                                            wallet.update_wallet(market, -1 * order.final_quantity, order.final_total)
                                             logger.info('Manager: {} sell order partially filled.'.format(market))
 
                                         # Market sell
                                         logger.info('Manager: Executing market sell order for {}.'.format(market))
 
-                                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger,
+                                        # Subtract target quantity from current quantity for new market sell order
+                                        order.target_quantity -= order.current_quantity
+                                        sell_status = sell_below_ask(order, wallet, bittrex, logger,
                                                                      percent=110)
 
                                         if not sell_status:
@@ -623,8 +635,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                                         continue
 
-                                    order.add_completed_order(order_data)
-                                    wallet.update_wallet(market, order.current_quantity, order.total)
+                                    order.complete_order()
+                                    wallet.update_wallet(market, -1 * order.final_quantity, order.final_total)
 
                                     logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
                                     logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
@@ -648,19 +660,37 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                 logger.error('Manager: Failed to cancel buy order for {}.'.format(market))
                                 logger.error('Manager: May need to manually cancel order.')
 
-                            skip_order(order, active_orders, completed_queue, logger)
+                            # Sell order data acquired at least once - sell order may be complete/partial/incomplete
+                            # TODO: complete rest of sell order
+                            if order.open_time:
+
+                                order.complete_order()
+                                wallet.update_wallet(market, -1 * order.final_quantity, order.final_total)
+
+                                logger.info('Manager: {} sell order partially filled.'.format(market))
+                                logger.info('WALLET AMOUNT: {} BTC'.format(str(wallet.get_quantity('BTC'))))
+                                logger.info('WALLET AMOUNT: {} {}'.format(str(wallet.get_base_quantity(market)),
+                                                                          market))
+
+                                active_orders.remove(order)
+                                completed_queue.put(order)
+
+                            else:
+                                skip_order(order, active_orders, completed_queue, logger)
 
                     # Sell order has not been executed
                     else:
 
-                        sell_status = sell_below_ask(market, order, wallet, bittrex, logger, percent=10)
+                        sell_status = sell_below_ask(order, wallet, bittrex, logger, percent=10)
 
                         if not sell_status:
                             skip_order(order, active_orders, completed_queue, logger)
 
             stop = time()
             run_time = stop - start
-            logger.info('Manager: Run time: {0:.2f}s'.format(run_time))
+
+            if run_time > 5:
+                logger.info('Manager: Run time: {0:.2f}s'.format(run_time))
 
             if run_time < sleep_time:
                 sleep(sleep_time - run_time)
@@ -699,7 +729,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     logger.info('Manager: Cancel order successful for {}'.format(order.market))
                     get_order_and_update_wallet(order, wallet, bittrex)
 
-                sell_status = sell_below_ask(order.market, order, wallet, bittrex, logger, percent=110)
+                sell_status = sell_below_ask(order, wallet, bittrex, logger, percent=110)
 
                 if not sell_status.get('success'):
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
