@@ -106,3 +106,5 @@ ENV/
 *.json
 
 .DS_Store
+
+sql_data/
