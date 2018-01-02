@@ -389,6 +389,40 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                         market_status[order_market].sell_order = completed_order
                         logger.info('Tradebot: Received completed sell order for {}.'.format(order_market))
 
+                        status = market_status[order_market]
+
+                        # Completed buy and sell order for single market
+                        if status.buy_order.status == OrderStatus.COMPLETED.name and \
+                                status.sell_order.status == OrderStatus.COMPLETED.name:
+                            profit = (status.sell_order.final_total + status.buy_order.final_total).quantize(
+                                BittrexConstants.DIGITS)
+                            percent = (profit * Decimal(-100) / status.buy_order.final_total).quantize(
+                                Decimal(10) ** -4)
+
+                            formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
+                            formatted_sell_time = format_time(status.sell_order.closed_time, "%Y-%m-%d %H:%M:%S")
+
+                            logger.info('Tradebot: completed buy/sell order for {}.'.format(order_market))
+
+                            db.insert_query(table_name, format_tradebot_entry(order_market,
+                                                                              formatted_buy_time,
+                                                                              status.buy_signal,
+                                                                              status.buy_order.actual_price,
+                                                                              status.buy_order.final_total,
+                                                                              formatted_sell_time,
+                                                                              status.sell_signal,
+                                                                              status.sell_order.actual_price,
+                                                                              status.sell_order.final_total,
+                                                                              profit,
+                                                                              percent))
+
+                            # Reset buy/sell orders and buy/sell signals
+                            status.clear_orders()
+                            status.buy_signal = None
+                            status.sell_signal = None
+                        else:
+                            logger.error('Tradebot: Attempted to insert INCOMPLETE BUY and SELL order into database.')
+
             for market in scraper_data.keys():
 
                 data = market_data.get(market)
@@ -406,35 +440,6 @@ def run_tradebot(control_queue, data_queue, pending_order_queue, completed_order
                                       amount_per_call,
                                       pending_order_queue,
                                       logger)
-
-                        # Completed buy and sell order for single market
-                        if status.buy_order.status == OrderStatus.COMPLETED.name and \
-                                status.sell_order.status == OrderStatus.COMPLETED.name:
-                            profit = (status.sell_order.final_total + status.buy_order.final_total).quantize(
-                                BittrexConstants.DIGITS)
-                            percent = (profit * Decimal(-100) / status.buy_order.final_total).quantize(Decimal(10) ** -4)
-
-                            formatted_buy_time = format_time(status.buy_order.closed_time, "%Y-%m-%d %H:%M:%S")
-                            formatted_sell_time = format_time(status.sell_order.closed_time, "%Y-%m-%d %H:%M:%S")
-
-                            logger.info('Tradebot: completed buy/sell order for {}.'.format(market))
-
-                            db.insert_query(table_name, format_tradebot_entry(market,
-                                                                              formatted_buy_time,
-                                                                              status.buy_signal,
-                                                                              status.buy_order.actual_price,
-                                                                              status.buy_order.final_total,
-                                                                              formatted_sell_time,
-                                                                              status.sell_signal,
-                                                                              status.sell_order.actual_price,
-                                                                              status.sell_order.final_total,
-                                                                              profit,
-                                                                              percent))
-
-                            # Reset buy/sell orders and buy/sell signals
-                            status.clear_orders()
-                            status.buy_signal = None
-                            status.sell_signal = None
 
             if not control_queue.empty():
 
@@ -608,6 +613,8 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                                     if order_data.get('QuantityRemaining') > 0:
                                         cancel_response = bittrex.cancel(order.uuid)
 
+                                        sleep(3)  # Wait for cancel to complete - free funds before market sell
+
                                         logger.info('Manager: {} sell order incomplete - canceling.'.format(market))
 
                                         if not cancel_response.get('success'):
@@ -735,17 +742,15 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
                     continue
 
-                sleep(3)  # Wait for market sell order to complete
-
                 logger.info('Manager: Market sell order successful for {}'.format(order.market))
 
                 # Get status of all market sell orders
                 get_order_and_update_wallet(order, wallet, bittrex)
 
-            open_markets = wallet.get_open_markets()
+        open_markets = wallet.get_open_markets()
 
-            if open_markets:
-                logger.info('Manager: Remaining open markets:\n', open_markets)
+        if open_markets:
+            logger.info('Manager: Remaining open markets:\n', open_markets)
 
         logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get_quantity('BTC'))))
         logger.info('Manager: Stopped manager.')
