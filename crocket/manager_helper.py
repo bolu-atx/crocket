@@ -38,8 +38,11 @@ def get_order_and_update_wallet(order, wallet, bittrex):
 
             order.upddate_order(order_response.get('result'))
             order.complete_order()
-            order.target_quantity -= order.final_quantity
-            wallet.update_wallet(order.market, -1 * order.final_quantity, order.final_total)
+
+            if order_data.get('Type') == 'LIMIT_BUY':
+                wallet.update_wallet(order.market, order.final_quantity, order.final_total)
+            else:
+                wallet.update_wallet(order.market, -1 * order.final_quantity, order.final_total)
 
 
 def buy_above_bid(order, wallet, bittrex, logger,

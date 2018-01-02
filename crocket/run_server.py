@@ -718,7 +718,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
         if active_orders:
 
             logger.info('Manager: {} active orders.'.format(str(len(active_orders))))
-            logger.info('Manager: Closing open positions.')
+            logger.info('Manager: Canceling active orders.')
 
             # Cancel orders and execute market sells
             for order in active_orders:
@@ -736,6 +736,17 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
                     logger.info('Manager: Cancel order successful for {}'.format(order.market))
                     get_order_and_update_wallet(order, wallet, bittrex)
 
+        open_markets = wallet.get_open_markets()
+
+        if open_markets:
+            logger.info('Manager: Remaining open markets:\n{}'.format(open_markets))
+
+            for market in open_markets:
+
+                order = BittrexOrder(market=market,
+                                     order_type=OrderType.SELL.name,
+                                     target_quantity=wallet.get_quantity(market))
+
                 sell_status = sell_below_ask(order, wallet, bittrex, logger, percent=110)
 
                 if not sell_status.get('success'):
@@ -744,13 +755,17 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                 logger.info('Manager: Market sell order successful for {}'.format(order.market))
 
+                sleep(3)  # Wait for market sell order to complete
+
                 # Get status of all market sell orders
                 get_order_and_update_wallet(order, wallet, bittrex)
 
         open_markets = wallet.get_open_markets()
 
         if open_markets:
-            logger.info('Manager: Remaining open markets:\n', open_markets)
+            logger.info('Manager: Remaining open markets:\n{}'.format(open_markets))
+        else:
+            logger.info('Manager: Successfully closed all positions.')
 
         logger.info('FINAL WALLET AMOUNT: {}'.format(str(wallet.get_quantity('BTC'))))
         logger.info('Manager: Stopped manager.')
