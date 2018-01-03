@@ -749,7 +749,7 @@ def run_manager(control_queue, order_queue, completed_queue, wallet_total, logge
 
                 sell_status = sell_below_ask(order, wallet, bittrex, logger, percent=110)
 
-                if not sell_status.get('success'):
+                if not sell_status:
                     logger.info('Manager: Market sell order failed for {}.'.format(order.market))
                     continue
 
