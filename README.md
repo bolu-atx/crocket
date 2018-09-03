@@ -18,9 +18,6 @@ Crocket collects real-time cryptocurrency data from Bittrex and stores it in an 
  
     * Manager executes all buy and sell orders received from tradebot.
 
-***DO NOT RUN THE TRADEBOT WITH THE CURRENT CONFIGURATION
-***The tradebot currently uses my credentials and will make real trades with my Bittrex account.
-
 ## How to run
 
 1. Open a new screen.
